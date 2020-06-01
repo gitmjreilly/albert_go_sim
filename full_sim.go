@@ -1,9 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"albert_go_sim/cpu"
-	"net"
+	"albert_go_sim/serialport"
+	"fmt"
 	"os"
 	"strconv"
 )
@@ -13,42 +13,7 @@ var ram Memory
 
 // SerialPort1 is the console
 //
-var SerialPort1 serialPort
-
-type serialPort struct {
-	receiveBuffer            [1024]int16
-	transmitBuffer           [1024]int16
-	numBytesInReceiveBuffer  int
-	numBytesInTransmitBuffer int
-	remainingTransmitTime    int
-	remaingingReceiveTime    int
-	memory                   [16]int16
-	serialConnection         net.Conn
-}
-
-func (s *serialPort) Init() {
-	ln, err := net.Listen("tcp", ":5000")
-	if err != nil {
-		fmt.Printf("Fatal error could not listen for serial port")
-		panic("Done.")
-	}
-	fmt.Printf("   Listen succeeded\n")
-	connection, err := ln.Accept()
-	if err != nil {
-		fmt.Printf("Fatal error could not listen for serial port")
-		panic("Done.")
-	}
-	s.serialConnection = connection
-	fmt.Printf("   Accept succeeded\n")
-	fmt.Fprintf(s.serialConnection, "Hello from the simulator\n")
-}
-
-func (s *serialPort) write(address uint16, value uint16) {
-	var byteSlice []byte
-	b := byte(value)
-	byteSlice = append(byteSlice, b)
-	s.serialConnection.Write(byteSlice)
-}
+var SerialPort1 serialport.SerialPort
 
 // Memory matches hardware
 type Memory struct {
@@ -62,21 +27,11 @@ func (m *Memory) read(address uint16) uint16 {
 func (m *Memory) write(address uint16, value uint16) {
 	if address >= 0xF000 && address <= 0xF00F {
 		address -= 0xF000
-		SerialPort1.write(address, value)
+		SerialPort1.Write(address, value)
 
 	}
 	m.memory[address] = value
 }
-
-// (s SerialPort) func tick() {
-// 	if remainingTransmitTime > 0 {
-// 		remainingTransmitTime--
-// 	}
-// 	if remainingReceiveTime > 0 {
-// 		remainingReceiveTime--
-// 	}
-// 	if numByptes
-// }
 
 // load403File - uses Original Pat loader format from 2006!
 // It is interactive and prompts for a file name.
@@ -144,7 +99,7 @@ func load403File() {
 func main() {
 
 	// TODO restore serial port
-	// SerialPort1.Init()
+	SerialPort1.Init()
 
 	mycpu.Init()
 
@@ -160,33 +115,12 @@ func main() {
 	fmt.Printf("Loading a 403 object file...\n")
 	load403File()
 
-	// ram.write(0, 2)
-	// ram.write(1, 5)
-
-	// ram.write(2, 2)
-	// ram.write(3, 9)
-
-	// ram.write(4, 2)
-	// ram.write(5, 7)
-
-	// ram.write(6, 2)
-	// ram.write(7, 66)
-
-	// ram.write(8, 2)
-	// ram.write(9, 0xF000)
-
-	// ram.write(10, 8)
-
-	// ram.write(11, 3)
-
 	for {
-
 		status := mycpu.Tick()
 		if status != 0 {
 			fmt.Printf("Saw non zero return status; breaking\n")
 			break
 		}
-
 	}
 
 	fmt.Printf("PC is %04X\n", mycpu.PC)
@@ -201,12 +135,6 @@ func main() {
 	stackString += fmt.Sprintf("PTOS:%04X", mycpu.PTOS)
 	fmt.Println(stackString)
 
-	// for i := 0xFF00; i < (0xFF00 + 10); i++ {
-	// 	value := ram.read(uint16(i))
-	// 	fmt.Printf("Address %04X Value %04X\n", uint16(i), value)
-	// }
-
-	// fmt.Printf("PTOS is : %04X\n", mycpu.PTOS)
 	fmt.Printf("Simulation is finished\n")
 
 }
