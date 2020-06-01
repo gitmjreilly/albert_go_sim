@@ -48,7 +48,7 @@ func (s *SerialPort) Init() {
 func (s *SerialPort) Tick() {
 	b := make([]byte, 1)
 	// var t time.Time
-	_ = s.serialConnection.SetReadDeadline(time.Now().Add(1 * time.Millisecond))
+	_ = s.serialConnection.SetReadDeadline(time.Now().Add(500 * time.Nanosecond))
 	numRead, _ := s.serialConnection.Read(b)
 	fmt.Printf("in serial Tick num read is  [%d]\n", numRead)
 	if numRead == 1 {
