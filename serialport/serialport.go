@@ -39,6 +39,7 @@ func (s *SerialPort) Init() {
 	}
 	s.serialConnection = connection
 	fmt.Printf("   Accept succeeded\n")
+	time.Sleep(2 * time.Second)
 	fmt.Fprintf(s.serialConnection, "Hello from the simulator\n")
 	s.statusReg = 0
 

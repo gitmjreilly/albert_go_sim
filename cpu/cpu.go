@@ -31,6 +31,11 @@ const (
 	xorOpcode         = 29
 )
 
+const (
+	true  = 0xFFFF
+	false = 0x0000
+)
+
 // Status contains a snapshot along with disassembly
 type Status struct {
 	cpuStruct       CPU
@@ -78,10 +83,8 @@ func (c *CPU) push(v uint16) {
 	scaledDS := uint16(c.DS << 4)
 
 	address := c.PSP + scaledDS
-	// fmt.Printf("Address is %05X\n", address)
 	c.WriteDataMemory(address, c.PTOS)
 	c.PSP++
-	// fmt.Printf("  Setting c.PTOS to v [%04X]\n", v)
 	c.PTOS = v
 }
 
@@ -96,7 +99,6 @@ func (c *CPU) pop() uint16 {
 }
 
 // rPush is the cpu's internal push to the return stack
-// e.g. DO_LIT and PLUS...
 func (c *CPU) rPush(v uint16) {
 	scaledDS := uint16(c.DS << 4)
 	c.WriteDataMemory(c.RSP+scaledDS, c.RTOS)
@@ -157,9 +159,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 	leftOperand := c.ReadDataMemory(scaledDS + c.PSP - 1)
 	rightOperand := c.PTOS
 	inlineOperand := c.ReadDataMemory(c.PC + scaledCS)
-	// rtosOperand := c.RTOS
-	// pspOperand := c.PSP
-	// rspOperand := c.RSP
+	rtosOperand := c.RTOS
 
 	// a b AND
 	if opCode == andOpcode {
@@ -189,8 +189,8 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		fmt.Println(disassemblyString)
 
 		flag := c.pop()
-		destinationAddress := c.consumeInstructionLiteral() + scaledCS
-		if flag == 0 {
+		destinationAddress := c.consumeInstructionLiteral()
+		if flag == false {
 			c.PC = destinationAddress
 		}
 
@@ -237,9 +237,9 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		b := c.pop()
 		a := c.pop()
 		if a == b {
-			c.push(0xFFFF)
+			c.push(true)
 		} else {
-			c.push(0x0000)
+			c.push(false)
 		}
 
 		return (0)
@@ -257,6 +257,17 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		return (0)
 	}
 
+	// (RTOS) FROM_R
+	if opCode == fromROpcode {
+		disassemblyString += fmt.Sprintf("[RTOS: %04X] FROM_R | %s", rtosOperand, stackString)
+		fmt.Println(disassemblyString)
+
+		a := c.rPop()
+		c.push(a)
+
+		return (0)
+	}
+
 	// JSR d
 	if opCode == jsrOpcode {
 		disassemblyString += fmt.Sprintf("JSR %04X | %s", inlineOperand, stackString)
@@ -269,23 +280,24 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		return (0)
 	}
 
+	// HALT
 	if opCode == haltOpcode {
 		disassemblyString += fmt.Sprintf("HALT")
 		fmt.Println(disassemblyString)
 		return (1)
 	}
 
+	// a b LESS
 	if opCode == lessOpcode {
 		disassemblyString += fmt.Sprintf("[%04X %04X] LESS | %s", leftOperand, rightOperand, stackString)
 		fmt.Println(disassemblyString)
 
-		c.PSP--
-		a := int16(c.ReadDataMemory(c.PSP + scaledDS))
-		b := int16(c.PTOS)
+		b := int16(c.pop())
+		a := int16(c.pop())
 		if a < b {
-			c.PTOS = 0xFFFF
+			c.push(true)
 		} else {
-			c.PTOS = 0x0000
+			c.push(false)
 		}
 		return (0)
 	}
@@ -301,23 +313,29 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		return (0)
 	}
 
+	// a NEG?
 	if opCode == negOpcode {
 		disassemblyString += fmt.Sprintf("[%04X] NEG? | %s", rightOperand, stackString)
 		fmt.Println(disassemblyString)
 
-		if int16(c.PTOS) < 0 {
-			c.PTOS = 0xFFFF
+		a := int16(c.pop())
+		if a < 0 {
+			c.push(true)
 		} else {
-			c.PTOS = 0x0000
+			c.push(false)
 		}
 		return (0)
 	}
 
+	// a b OR
 	if opCode == orOpcode {
 		disassemblyString += fmt.Sprintf("[%04X %04X] OR | %s", leftOperand, rightOperand, stackString)
 		fmt.Println(disassemblyString)
-		c.PSP--
-		c.PTOS = c.PTOS | c.ReadDataMemory(scaledDS+c.PSP)
+
+		b := c.pop()
+		a := c.pop()
+		c.push(a | b)
+
 		return (0)
 	}
 
@@ -337,7 +355,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		disassemblyString += fmt.Sprintf("RET [%04X] | %s", c.RTOS, stackString)
 		fmt.Println(disassemblyString)
 
-		c.PC = c.rPop() + scaledDS
+		c.PC = c.rPop()
 
 		return 0
 	}
@@ -379,23 +397,27 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		return 0
 	}
 
+	// a TO_R
 	if opCode == toROpcode {
 		disassemblyString += fmt.Sprintf("[PTOS: %04X] TO_R | %s", rightOperand, stackString)
 		fmt.Println(disassemblyString)
-		c.WriteDataMemory(c.RSP+scaledDS, c.RTOS)
-		c.RSP++
-		c.RTOS = c.PTOS
-		c.PSP--
-		c.PTOS = c.ReadDataMemory(c.PSP + scaledDS)
+
+		a := c.pop()
+		c.rPush(a)
+
 		return 0
 
 	}
 
+	// a b XOR
 	if opCode == xorOpcode {
 		disassemblyString += fmt.Sprintf("[%04X %04X] XOR | %s", leftOperand, rightOperand, stackString)
 		fmt.Println(disassemblyString)
-		c.PSP--
-		c.PTOS = c.ReadDataMemory(scaledDS+c.PSP) ^ c.PTOS
+
+		b := c.pop()
+		a := c.pop()
+		c.push(a ^ b)
+
 		return (0)
 	}
 

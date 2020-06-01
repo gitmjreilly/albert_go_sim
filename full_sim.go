@@ -140,6 +140,13 @@ func main() {
 	stackString += fmt.Sprintf("PTOS:%04X", mycpu.PTOS)
 	fmt.Println(stackString)
 
+	stackString = "RSTACK => "
+	for i := 5; i > 0; i-- {
+		stackString += fmt.Sprintf("%04X ", ram.read(mycpu.RSP-uint16(i)))
+	}
+	stackString += fmt.Sprintf("RTOS:%04X", mycpu.RTOS)
+	fmt.Println(stackString)
+
 	fmt.Printf("Simulation is finished\n")
 
 }
