@@ -21,6 +21,10 @@ type Memory struct {
 }
 
 func (m *Memory) read(address uint16) uint16 {
+	if address >= 0xF000 && address <= 0xF00F {
+		address -= 0xF000
+		return SerialPort1.Read(address)
+	}
 	return (m.memory[address])
 }
 
@@ -116,6 +120,7 @@ func main() {
 	load403File()
 
 	for {
+		SerialPort1.Tick()
 		status := mycpu.Tick()
 		if status != 0 {
 			fmt.Printf("Saw non zero return status; breaking\n")
