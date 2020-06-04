@@ -119,13 +119,36 @@ func main() {
 	fmt.Printf("Loading a 403 object file...\n")
 	load403File()
 
+	numCyclesPerInstruction := 8
+	tenthSecondTick := 0
+	numClockTicks := 1
+	humanTime := 0.0
 	for {
+		numClockTicks++
+		if numClockTicks == 200000000 {
+			break
+		}
+		tenthSecondTick++
+
+		if tenthSecondTick == 1000000 {
+			tenthSecondTick = 0
+			humanTime += .1
+
+			fmt.Printf("human time %f\n", humanTime)
+
+		}
 		SerialPort1.Tick()
+
+		if numClockTicks%numCyclesPerInstruction != 0 {
+			continue
+		}
+
 		status := mycpu.Tick()
 		if status != 0 {
 			fmt.Printf("Saw non zero return status; breaking\n")
 			break
 		}
+
 	}
 
 	fmt.Printf("PC is %04X\n", mycpu.PC)
