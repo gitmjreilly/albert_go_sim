@@ -22,6 +22,11 @@ type SerialPort struct {
 	memory                   [16]int16
 	serialConnection         net.Conn
 	statusReg                uint16
+	inputChannel             chan uint8
+}
+
+func (s *SerialPort) pollInput() {
+
 }
 
 // Init must be called before the serial port is used
@@ -43,13 +48,28 @@ func (s *SerialPort) Init() {
 	time.Sleep(2 * time.Second)
 	fmt.Fprintf(s.serialConnection, "Hello from the simulator\n")
 	s.statusReg = 0
+	s.inputChannel = make(chan uint8, 0)
+
+	poll := func() {
+		b := make([]uint8, 1)
+
+		for {
+			// _ = s.serialConnection.SetReadDeadline(time.Now().Add(500 * time.Nanosecond))
+			// This Read will block until a byte arrives
+			// numRead, _ := s.serialConnection.Read(b)
+			s.serialConnection.Read(b)
+			s.inputChannel <- b[0]
+
+		}
+
+	}
+
+	go poll()
 
 }
 
 // Tick should be called on every tick off the virtual clock
 func (s *SerialPort) Tick() {
-
-	return
 
 	// b := make([]byte, 1)
 	// // var t time.Time
@@ -59,7 +79,15 @@ func (s *SerialPort) Tick() {
 	// if numRead == 1 {
 	// 	s.receiveBuffer[0] = b[0]
 	// 	s.statusReg = 0x0002
+
 	// }
+	select {
+	case b := <-s.inputChannel:
+		s.receiveBuffer[0] = b
+		s.statusReg = 0x0002
+	default:
+		return
+	}
 
 }
 
@@ -78,14 +106,12 @@ func (s *SerialPort) Write(address uint16, value uint16) {
 // 0x0002 (bit) is set when byte had been received
 func (s *SerialPort) Read(address uint16) uint16 {
 
-	fmt.Printf(" in sp read addr is %04X\n", address)
 	value := uint16(0)
 	if address == 0 {
 		value = uint16(s.receiveBuffer[0])
 		s.statusReg = 0
 	} else {
 		if address == 1 {
-			fmt.Printf("DEBUG reading sp statuss reg\n")
 			value = s.statusReg
 		}
 	}
