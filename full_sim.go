@@ -121,7 +121,7 @@ func runSimulator(mode int) {
 	humanTime := 0.0
 	for {
 		numClockTicks++
-		if numClockTicks == 200000000 {
+		if numClockTicks == 100000000 {
 			break
 		}
 		tenthSecondTick++
@@ -177,7 +177,7 @@ func main() {
 		}
 
 		if selection == "H" {
-			cpu.History.Display(20)
+			cpu.History.Display(50)
 			continue
 		}
 
