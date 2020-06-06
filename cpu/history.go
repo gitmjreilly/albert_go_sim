@@ -2,6 +2,7 @@ package cpu
 
 import (
 	"albert_go_sim/intmaxmin"
+	"fmt"
 )
 
 // Status contains a snapshot along with disassembly
@@ -36,6 +37,13 @@ func (h *tHistory) Display(numInstructions int) {
 	start := h.nextIn - numInstructions
 	if start < 0 {
 		start = len(h.data) - start
+	}
+
+	index := start
+	for i := 0; i < numInstructions; i++ {
+		fmt.Printf("%v\n", h.data[index])
+		index++
+		index = index % len(h.data)
 	}
 
 }

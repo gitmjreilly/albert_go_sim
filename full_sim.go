@@ -3,6 +3,7 @@ package main
 import (
 	"albert_go_sim/cpu"
 	"albert_go_sim/serialport"
+	"bufio"
 	"fmt"
 	"os"
 	"strconv"
@@ -100,9 +101,8 @@ func load403File() {
 
 }
 
-func main() {
-
-	// TODO restore serial port
+// Init initializes the global runtime for the simulator
+func Init() {
 	SerialPort1.Init()
 
 	mycpu.Init()
@@ -110,15 +110,11 @@ func main() {
 	mycpu.ReadCodeMemory = ram.read
 	mycpu.ReadDataMemory = ram.read
 	mycpu.WriteDataMemory = ram.write
+}
 
-	// scanner := bufio.NewScanner(os.Stdin)
-	// shellPrompt := "Simulate >"
+func runSimulator(mode int) {
 
-	// Fill RAM with instructions
-
-	fmt.Printf("Loading a 403 object file...\n")
-	load403File()
-
+	fmt.Printf("Running simulator\n")
 	numCyclesPerInstruction := 8
 	tenthSecondTick := 0
 	numClockTicks := 1
@@ -145,7 +141,52 @@ func main() {
 
 		status := mycpu.Tick()
 		if status != 0 {
-			fmt.Printf("Saw non zero return status; breaking\n")
+			fmt.Printf("Saw non zero cpu Tick status; breaking\n")
+			break
+		}
+
+	}
+
+}
+
+func helpMessage() {
+	fmt.Printf("HELP\n")
+	fmt.Printf("   r - run the simulator\n")
+	fmt.Printf("   H - display history\n")
+	fmt.Printf("   q - quit the simulator\n")
+}
+
+func main() {
+
+	Init()
+
+	fmt.Printf("Loading a 403 object file...\n")
+	load403File()
+
+	scanner := bufio.NewScanner(os.Stdin)
+
+	for {
+		fmt.Printf("Simulator (h for help) >")
+		scanner.Scan()
+		selection := scanner.Text()
+		fmt.Printf("Your selection was [%s]\n", selection)
+
+		if selection == "h" {
+			helpMessage()
+			continue
+		}
+
+		if selection == "H" {
+			cpu.History.Display(20)
+			continue
+		}
+
+		if selection == "r" {
+			runSimulator(0)
+			continue
+		}
+
+		if selection == "q" {
 			break
 		}
 

@@ -32,6 +32,7 @@ func (s *SerialPort) Init() {
 		panic("Done.")
 	}
 	fmt.Printf("   Listen succeeded\n")
+	fmt.Printf("   Connect your virtual terminal to TCP 5000\n")
 	connection, err := ln.Accept()
 	if err != nil {
 		fmt.Printf("Fatal error could not listen for serial port")
