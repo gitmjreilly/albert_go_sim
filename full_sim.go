@@ -121,7 +121,7 @@ func runSimulator(mode int) {
 	humanTime := 0.0
 	for {
 		numClockTicks++
-		if numClockTicks == 100000000 {
+		if numClockTicks == 1000000000 {
 			break
 		}
 		tenthSecondTick++

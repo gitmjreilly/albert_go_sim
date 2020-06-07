@@ -8,6 +8,14 @@ func Max(x int, y int) int {
 	return y
 }
 
+// Min returns min of x, y
+func Min(x int, y int) int {
+	if x < y {
+		return x
+	}
+	return y
+}
+
 // Constrain v to range between min and max (inclusive)
 func Constrain(v int, min int, max int) int {
 	if v < min {
