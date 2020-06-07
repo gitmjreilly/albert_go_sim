@@ -142,6 +142,7 @@ func runSimulator(mode int) {
 		status := mycpu.Tick()
 		if status != 0 {
 			fmt.Printf("Saw non zero cpu Tick status; breaking\n")
+			fmt.Printf("Number of ticks since simulation started : %d\n", numClockTicks)
 			break
 		}
 

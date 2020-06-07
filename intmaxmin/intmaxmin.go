@@ -34,3 +34,8 @@ func Wrap(v int, n int) int {
 	}
 	return n - v
 }
+
+// IncMod increments n by i and provides remainder mod m
+func IncMod(n int, i int, m int) int {
+	return ((n + i) % m)
+}
