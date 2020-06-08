@@ -19,14 +19,8 @@ const (
 
 // SerialPort provides virtual serial port implemented with TCP
 type SerialPort struct {
-	receiveBuffer             [receiverBufferSize]uint8
-	receiveBufferIn           int
-	receiveBufferOut          int
-	transmitBuffer            [transmitBufferSize]uint8
-	transmitBufferIn          int
-	transmitBufferOut         int
-	numBytesInReceiveBuffer   int
-	numBytesInTransmitBuffer  int
+	receiveBuffer             fifo
+	transmitBuffer            fifo
 	remainingTransmitTime     int
 	remaingingReceiveTime     int
 	memory                    [16]int16
@@ -36,12 +30,52 @@ type SerialPort struct {
 	numTicksSinceTransmission int
 }
 
-func (s *SerialPort) pollInput() {
-
+type fifo struct {
+	data        []uint8
+	in          int
+	out         int
+	numElements int
 }
+
+// init initializes the fifo to size
+func (f *fifo) init(size int) {
+	f.data = make([]uint8, size)
+}
+
+// push adds an element to the fifo
+// No check is made to see if the fifo is full
+func (f *fifo) push(b uint8) {
+	f.data[f.in] = b
+	f.in = intmaxmin.IncMod(f.in, 1, len(f.data))
+	f.numElements = intmaxmin.Min(f.numElements+1, len(f.data))
+}
+
+// Pop gets the next item from the Fifo
+// No  check is made to see if the fifo is empty
+func (f *fifo) pop() uint8 {
+	v := f.data[f.out]
+	f.out = intmaxmin.IncMod(f.out, 1, len(f.data))
+	f.numElements = intmaxmin.Max(f.numElements-1, 0)
+	return v
+}
+
+// isFull returns true when thee fifo is full
+func (f *fifo) isFull() bool {
+	return f.numElements == len(f.data)
+}
+
+// isEmpty returns true when the fifo is empty
+func (f *fifo) isEmpty() bool {
+	return f.numElements == 0
+}
+
+//
 
 // Init must be called before the serial port is used
 func (s *SerialPort) Init() {
+	s.transmitBuffer.init(transmitBufferSize)
+	s.receiveBuffer.init(receiverBufferSize)
+
 	ln, err := net.Listen("tcp", ":5000")
 	if err != nil {
 		fmt.Printf("Fatal error could not listen for serial port")
@@ -91,12 +125,12 @@ func (s *SerialPort) Tick() {
 		select {
 		case b := <-s.inputChannel:
 			fmt.Printf("Got b from receive channel\n")
-			if s.numBytesInReceiveBuffer == len(s.receiveBuffer) {
-				fmt.Printf("WARNING serial receiver buffer over run")
+			if s.receiveBuffer.isFull() {
+				fmt.Printf("WARNING receiver buffer is full.  Data overrun will occur.\n")
 			}
-			s.receiveBuffer[s.receiveBufferIn] = b
-			s.receiveBufferIn = intmaxmin.IncMod(s.receiveBufferIn, 1, len(s.receiveBuffer))
-			s.numBytesInReceiveBuffer = intmaxmin.Min(s.numBytesInReceiveBuffer+1, len(s.receiveBuffer))
+
+			s.receiveBuffer.push(b)
+
 			s.numTicksSinceReception = 0
 		default:
 			break
@@ -110,7 +144,7 @@ func (s *SerialPort) Tick() {
 	s.numTicksSinceTransmission = intmaxmin.Min(s.numTicksSinceTransmission+1, numTXTicksPerByte)
 
 	// Is there any data to transmit?  If not there's nothing more to do
-	if s.numBytesInTransmitBuffer == 0 {
+	if s.transmitBuffer.isEmpty() {
 		return
 	}
 
@@ -120,9 +154,7 @@ func (s *SerialPort) Tick() {
 		return
 	}
 
-	b := byte(s.transmitBuffer[s.transmitBufferOut])
-	s.transmitBufferOut = intmaxmin.IncMod(s.transmitBufferOut, 1, len(s.transmitBuffer))
-	s.numBytesInTransmitBuffer = intmaxmin.Max(s.numBytesInTransmitBuffer-1, 0)
+	b := s.transmitBuffer.pop()
 
 	var byteSlice []byte
 	byteSlice = append(byteSlice, b)
@@ -134,19 +166,17 @@ func (s *SerialPort) Tick() {
 // 0 is the data port.
 // no other address is valid.
 func (s *SerialPort) Write(address uint16, value uint16) {
-	fmt.Printf("\nEntered serial port write\n")
 	if address != 0 {
 		fmt.Printf("WARNING Tried to write to serial port address %04x != 0; returning\n", address)
 		return
 	}
-	if s.numBytesInTransmitBuffer == len(s.transmitBuffer) {
-		fmt.Printf("WARNING you are writing to an already full serial transmit buffer; proceeding\n")
+
+	if s.transmitBuffer.isFull() {
+		fmt.Printf("WARNING you are writing to an already full serial transmit buffer; this will result in overrun\n")
 	}
-	fmt.Printf("Debug about to write %d to txbufferIn %d\n", value, s.transmitBufferIn)
-	fmt.Printf("num byte in tx buffer prior to write is %d\n", s.numBytesInTransmitBuffer)
-	s.transmitBuffer[s.transmitBufferIn] = byte(value)
-	s.numBytesInTransmitBuffer = intmaxmin.Min(s.numBytesInTransmitBuffer+1, len(s.transmitBuffer))
-	s.transmitBufferIn = (s.transmitBufferIn + 1) % len(s.transmitBuffer)
+
+	s.transmitBuffer.push(uint8(value))
+
 }
 
 // Read takes address and returns a value
@@ -159,16 +189,15 @@ func (s *SerialPort) Read(address uint16) uint16 {
 	if address == 0 {
 		// Users wants to read received serial data.
 		// Do some sanity checks along the way
-		if s.numBytesInReceiveBuffer == 0 {
+		if s.receiveBuffer.isEmpty() {
 			fmt.Printf("WARNING trying to read from empty serial receive buffer; returning\n")
 			return 0
 		}
 
-		// Consume from reciever buffer, including updating index and
+		// Consume from receiver buffer, including updating index and
 		// decrementing number
-		value = uint16(s.receiveBuffer[s.receiveBufferOut])
-		s.receiveBufferOut = intmaxmin.IncMod(s.receiveBufferOut, 1, len(s.receiveBuffer))
-		s.numBytesInReceiveBuffer = intmaxmin.Max(0, s.numBytesInReceiveBuffer-1)
+		value = uint16(s.receiveBuffer.pop())
+
 		return value
 	}
 	// address 1 is the compatibility address for original
@@ -176,17 +205,17 @@ func (s *SerialPort) Read(address uint16) uint16 {
 	// 0x0001 == transmitter is available for transmission
 	// 0x0002 == receiver has a byte to be read
 	if address == 1 {
-		if s.numBytesInTransmitBuffer < len(s.transmitBuffer) {
+		if !s.transmitBuffer.isFull() {
 			value |= 0x0001
 		}
-		if s.numBytesInReceiveBuffer > 0 {
+		if !s.receiveBuffer.isEmpty() {
 			value |= 0x0002
 		}
 		return value
 	}
 
 	if address == 2 {
-		if s.numBytesInTransmitBuffer == 0 {
+		if s.transmitBuffer.isEmpty() {
 			value = 0x0001
 		}
 		return value
