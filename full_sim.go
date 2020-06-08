@@ -38,6 +38,27 @@ func (m *Memory) write(address uint16, value uint16) {
 	m.memory[address] = value
 }
 
+func loadPatsLoader() {
+	fmt.Printf("Entered loadPatsLoader\n")
+	f, err := os.Open("loader_from_zero.txt")
+	if err != nil {
+		fmt.Printf("Could not open loader file\n")
+		fmt.Printf("Error is %v\n", err)
+		return
+	}
+	scanner := bufio.NewScanner(f)
+	address := uint16(0)
+	for scanner.Scan() {
+		s := scanner.Text()
+		n, _ := strconv.ParseUint(s, 16, 32)
+		w := uint16(n)
+		ram.write(address, w)
+		address++
+	}
+	f.Close()
+
+}
+
 // load403File - uses Original Pat loader format from 2006!
 // It is interactive and prompts for a file name.
 // TODO create a return value to show success or failure
@@ -110,6 +131,8 @@ func Init() {
 	mycpu.ReadCodeMemory = ram.read
 	mycpu.ReadDataMemory = ram.read
 	mycpu.WriteDataMemory = ram.write
+
+	loadPatsLoader()
 }
 
 func runSimulator(mode int) {
@@ -161,8 +184,8 @@ func main() {
 
 	Init()
 
-	fmt.Printf("Loading a 403 object file...\n")
-	load403File()
+	// fmt.Printf("Loading a 403 object file...\n")
+	// load403File()
 
 	scanner := bufio.NewScanner(os.Stdin)
 

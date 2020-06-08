@@ -124,7 +124,6 @@ func (s *SerialPort) Tick() {
 	if s.numTicksSinceReception >= numRXTicksPerByte {
 		select {
 		case b := <-s.inputChannel:
-			fmt.Printf("Got b from receive channel\n")
 			if s.receiveBuffer.isFull() {
 				fmt.Printf("WARNING receiver buffer is full.  Data overrun will occur.\n")
 			}

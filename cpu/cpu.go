@@ -19,6 +19,7 @@ const (
 	lessOpcode        = 5
 	mulOpcode         = 30
 	negOpcode         = 26
+	nopOpcode         = 1
 	orOpcode          = 28
 	overOpcode        = 22
 	plusOpcode        = 24
@@ -334,6 +335,15 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 			c.push(false)
 		}
 		return (0)
+	}
+
+	// NOP
+	if opCode == nopOpcode {
+		snapShot.disassemblyString = fmt.Sprintf("NOP | %s", stackString)
+		History.logInstruction(snapShot)
+
+		return (0)
+
 	}
 
 	// a b OR
