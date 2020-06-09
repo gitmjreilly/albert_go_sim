@@ -17,6 +17,7 @@ const (
 	haltOpcode        = 3
 	jsrOpcode         = 10
 	lessOpcode        = 5
+	lvarOpcode        = 51
 	mulOpcode         = 30
 	negOpcode         = 26
 	nopOpcode         = 1
@@ -25,7 +26,11 @@ const (
 	plusOpcode        = 24
 	rFetchOpcode      = 18
 	retOpcode         = 11
+	sLessOpcode       = 50
+	spFetchOpcode     = 20
+	spStoreOpcode     = 23
 	storeOpcode       = 8
+	store2Opcode      = 52
 	subOpcode         = 25
 	swapOpcode        = 21
 	toROpcode         = 13
@@ -163,6 +168,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 	rightOperand := c.PTOS
 	inlineOperand := c.ReadDataMemory(c.PC + scaledCS)
 	rtosOperand := c.RTOS
+	pspOperand := c.PSP
 
 	snapShot.absoluteAddress = absoluteAddress
 	snapShot.cpuStruct = *c
@@ -298,7 +304,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 	}
 
 	// a b LESS
-	if opCode == lessOpcode {
+	if opCode == lessOpcode || opCode == sLessOpcode {
 		snapShot.disassemblyString = fmt.Sprintf("[%04X %04X] LESS | %s", leftOperand, rightOperand, stackString)
 		History.logInstruction(snapShot)
 
@@ -310,6 +316,19 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 			c.push(false)
 		}
 		return (0)
+	}
+
+	// L_VAR n
+	if opCode == lvarOpcode {
+		snapShot.disassemblyString = fmt.Sprintf("L_VAR %004X | %s", inlineOperand, stackString)
+		History.logInstruction(snapShot)
+
+		offset := c.consumeInstructionLiteral()
+		// tempRTOS := c.rPop()
+		// c.rPush(tempRTOS)
+		c.push(offset + c.RTOS)
+		return (0)
+
 	}
 
 	// a b *
@@ -379,6 +398,32 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		return 0
 	}
 
+	// R_FETCH
+	if opCode == rFetchOpcode {
+		snapShot.disassemblyString = fmt.Sprintf("[RTOS: %04X] R_FETCH | %s", rtosOperand, stackString)
+		History.logInstruction(snapShot)
+
+		c.push(c.RTOS)
+		return 0
+	}
+
+	// SP_FETCH
+	if opCode == spFetchOpcode {
+		snapShot.disassemblyString = fmt.Sprintf("[PSP: %04X] SP_FETCH | %s", pspOperand, stackString)
+		History.logInstruction(snapShot)
+		c.push(c.PSP)
+		return 0
+	}
+
+	// SP_STORE
+	if opCode == spStoreOpcode {
+		snapShot.disassemblyString = fmt.Sprintf("[PTOS: %04X] SP_STORE | %s", rightOperand, stackString)
+		History.logInstruction(snapShot)
+
+		c.PSP = c.PTOS
+		return 0
+	}
+
 	// val addr STORE
 	if opCode == storeOpcode {
 		snapShot.disassemblyString = fmt.Sprintf("[%04X %04X] STORE | %s", leftOperand, rightOperand, stackString)
@@ -386,6 +431,18 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 		destinationAddress := c.pop() + scaledDS
 		val := c.pop()
+		c.WriteDataMemory(destinationAddress, val)
+
+		return 0
+	}
+
+	// addr val STORE2
+	if opCode == store2Opcode {
+		snapShot.disassemblyString = fmt.Sprintf("[%04X %04X] STORE | %s", leftOperand, rightOperand, stackString)
+		History.logInstruction(snapShot)
+
+		val := c.pop()
+		destinationAddress := c.pop() + scaledDS
 		c.WriteDataMemory(destinationAddress, val)
 
 		return 0

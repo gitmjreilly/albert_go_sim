@@ -37,6 +37,8 @@ type fifo struct {
 	numElements int
 }
 
+var byteNum int
+
 // init initializes the fifo to size
 func (f *fifo) init(size int) {
 	f.data = make([]uint8, size)
@@ -94,7 +96,7 @@ func (s *SerialPort) Init() {
 
 	s.numTicksSinceReception = 1000000
 	s.numTicksSinceTransmission = 0
-	s.inputChannel = make(chan uint8, 0)
+	s.inputChannel = make(chan uint8, 10)
 
 	poll := func() {
 		b := make([]uint8, 1)
@@ -128,6 +130,8 @@ func (s *SerialPort) Tick() {
 				fmt.Printf("WARNING receiver buffer is full.  Data overrun will occur.\n")
 			}
 
+			// fmt.Printf("got a byte %d\n", byteNum)
+			// byteNum++
 			s.receiveBuffer.push(b)
 
 			s.numTicksSinceReception = 0

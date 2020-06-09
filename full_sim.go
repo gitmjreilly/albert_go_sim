@@ -6,11 +6,15 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/signal"
 	"strconv"
+	"time"
 )
 
 var mycpu cpu.CPU
 var ram Memory
+
+var isKeyboardInterrupt bool = false
 
 // SerialPort1 is the console
 //
@@ -133,25 +137,42 @@ func Init() {
 	mycpu.WriteDataMemory = ram.write
 
 	loadPatsLoader()
+
+	go func() {
+		signalChannel := make(chan os.Signal, 2)
+		// When SIGINT occurs send signal to signalChannel
+		signal.Notify(signalChannel, os.Interrupt)
+		fmt.Printf("goroutine is waiting for a keyboard interrupt\n")
+		for {
+			<-signalChannel
+			isKeyboardInterrupt = true
+			time.Sleep(1 * time.Second)
+		}
+	}()
 }
 
 func runSimulator(mode int) {
 
 	fmt.Printf("Running simulator\n")
 	numCyclesPerInstruction := 8
-	tenthSecondTick := 0
+	numSecondsTick := 0
 	numClockTicks := 1
 	humanTime := 0.0
 	for {
+		if isKeyboardInterrupt {
+			fmt.Printf("Simulation stopped by keyboard interrupt\n")
+			isKeyboardInterrupt = false
+			break
+		}
 		numClockTicks++
 		if numClockTicks == 1000000000 {
 			break
 		}
-		tenthSecondTick++
+		numSecondsTick++
 
-		if tenthSecondTick == 1000000 {
-			tenthSecondTick = 0
-			humanTime += .1
+		if numSecondsTick == 10000000 {
+			numSecondsTick = 0
+			humanTime++
 
 			fmt.Printf("human time %f\n", humanTime)
 
@@ -201,7 +222,7 @@ func main() {
 		}
 
 		if selection == "H" {
-			cpu.History.Display(50)
+			cpu.History.Display(1000)
 			continue
 		}
 
