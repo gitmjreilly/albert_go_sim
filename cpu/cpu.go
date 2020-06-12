@@ -93,8 +93,6 @@ func (c *CPU) SetPC(pc uint16) {
 // push is the cpu's internal push operation used by almost every instruction
 // e.g. DO_LIT and PLUS...
 func (c *CPU) push(v uint16) {
-	// fmt.Printf("Entered c.push v is %04x\n", v)
-	// fmt.Printf("  PTOS is %04x\n", c.PTOS)
 	scaledDS := uint16(c.DS << 4)
 
 	address := c.PSP + scaledDS
@@ -300,7 +298,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 	if opCode == eiOpcode {
 		snapShot.disassemblyString = fmt.Sprintf("EI | %s", stackString)
 		History.logInstruction(snapShot)
-		fmt.Printf("Enabling Interrupts")
 		c.IntCtlLow |= 0x0001
 		return 0
 	}
@@ -342,20 +339,17 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// JSRINT
 	if opCode == jsrintOpcode {
-		// fmt.Printf("Entered JSRINT\n")
 		tmpRSP := c.RSP
 		c.rPush(c.DS)
 		c.rPush(c.cs)
 		c.rPush(c.ES)
 		c.rPush(c.PSP)
 		c.rPush(c.PTOS)
-		// fmt.Printf("  saving PC %4X\n", c.PC)
 		c.rPush(c.PC)
 		c.rPush(uint16(c.IntCtlLow))
 		c.rPush(tmpRSP)
 
 		c.IntCtlLow = c.IntCtlLow & 0xFE
-		// fmt.Printf("intctl low is now %04X\n", c.IntCtlLow)
 		c.PC = 0xFD00
 		c.cs = 0x0000
 		return 0
@@ -366,7 +360,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		snapShot.disassemblyString = fmt.Sprintf("RETI | %s", stackString)
 		History.logInstruction(snapShot)
 
-		// fmt.Printf("entered RETI\n")
 		tmpRSP := c.rPop()
 		c.IntCtlLow = uint8(c.rPop())
 		c.PC = c.rPop()

@@ -130,7 +130,6 @@ func (s *SerialPort) Tick() {
 				fmt.Printf("WARNING receiver buffer is full.  Data overrun will occur.\n")
 			}
 
-			// fmt.Printf("got a byte %d\n", byteNum)
 			// byteNum++
 			s.receiveBuffer.push(b)
 

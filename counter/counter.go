@@ -19,9 +19,7 @@ type Counter struct {
 // The hardware counter will increment on every 8 Ticks
 // to match the hardware
 func (c *Counter) Tick() {
-	// fmt.Printf("Entered counter tick()\n")
 	if c.tickNum == 0 {
-		// fmt.Printf("Incing value\n")
 		c.value++
 	}
 	c.tickNum = intmaxmin.IncMod(c.tickNum, 1, ticksPerCount)
@@ -30,13 +28,6 @@ func (c *Counter) Tick() {
 // CounterIsZero is meant to be a callback for external
 // functions to check if the counter is zero
 func (c *Counter) CounterIsZero() bool {
-	// fmt.Printf("Counter is zerio callback was called\n")
-	// if c.value == 0 {
-	// 	fmt.Printf("counter value is 0\n")
-	// }
-	// if c.value = 1000 {
-	// 	fmt.Printf("Counter is 1000\n")
-	// }
 	return c.value == 0
 }
 

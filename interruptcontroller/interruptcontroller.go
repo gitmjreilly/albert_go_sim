@@ -38,11 +38,9 @@ func (i *InterruptController) Tick() {
 			continue
 		}
 		// Does callback indicate an interrupt occurred?
-		// fmt.Printf("Checking int num %d\n", interruptNum)
 		if !(i.Callbacks[interruptNum]()) {
 			continue
 		}
-		// fmt.Printf("Callback returned true\n")
 		// Does mask allow capturing this interrupt
 		mask := (1 << interruptNum) & i.mask
 		if mask == 0 {

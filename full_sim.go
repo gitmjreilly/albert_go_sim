@@ -217,9 +217,6 @@ func main() {
 
 	Init()
 
-	// fmt.Printf("Loading a 403 object file...\n")
-	// load403File()
-
 	scanner := bufio.NewScanner(os.Stdin)
 
 	for {
