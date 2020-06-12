@@ -1,21 +1,26 @@
 package cpu
 
 import (
+	"albert_go_sim/intmaxmin"
 	"fmt"
 )
 
+// Opcode values
 const (
 	andOpcode         = 27
 	branchOpcode      = 4
 	branchFalseOpcode = 12
+	diOpcode          = 37
 	doLitOpcode       = 2
 	dropOpcode        = 7
 	dupOpcode         = 19
+	eiOpcode          = 35
 	equallOpcode      = 31
 	fetchOpcode       = 9
 	fromROpcode       = 14
 	haltOpcode        = 3
 	jsrOpcode         = 10
+	jsrintOpcode      = 33
 	lessOpcode        = 5
 	lvarOpcode        = 51
 	mulOpcode         = 30
@@ -26,6 +31,7 @@ const (
 	plusOpcode        = 24
 	rFetchOpcode      = 18
 	retOpcode         = 11
+	retiOpcode        = 34
 	sLessOpcode       = 50
 	spFetchOpcode     = 20
 	spStoreOpcode     = 23
@@ -42,23 +48,30 @@ const (
 	false = 0x0000
 )
 
+const (
+	ticksPerInstruction = 8
+)
+
 // History contains the run time history of the CPU
 var History tHistory
 
 // CPU struct matches hardware
 type CPU struct {
-	PC              uint16
-	cs              uint16
-	DS              uint16
-	ES              uint16
-	PSP             uint16
-	RSP             uint16
-	PTOS            uint16
-	RTOS            uint16
-	ReadDataMemory  func(uint16) uint16
-	WriteDataMemory func(uint16, uint16)
-	ReadCodeMemory  func(uint16) uint16
-	history         []Status
+	PC                uint16
+	cs                uint16
+	DS                uint16
+	ES                uint16
+	PSP               uint16
+	RSP               uint16
+	PTOS              uint16
+	RTOS              uint16
+	IntCtlLow         uint8
+	ReadDataMemory    func(uint16) uint16
+	WriteDataMemory   func(uint16, uint16)
+	ReadCodeMemory    func(uint16) uint16
+	history           []Status
+	InterruptCallback func() bool
+	tickNum           int
 }
 
 // Init sets up the cpu before the first instruction is run
@@ -129,7 +142,21 @@ func (c *CPU) consumeInstructionLiteral() uint16 {
 // Tick should be called for each "tick" of the virtual clock.
 // Return value indicates normal operation, halt seen or other TBD.
 func (c *CPU) Tick() int {
+	c.tickNum = intmaxmin.IncMod(c.tickNum, 1, ticksPerInstruction)
+	if c.tickNum != 0 {
+		return (0)
+	}
+
 	var absoluteAddress uint16 = c.cs<<4 + c.PC
+
+	if c.InterruptCallback() && ((c.IntCtlLow & 0x01) == 1) {
+		// Notice the PC has not been incremented.
+		// This is because the JSR should return to the PC location
+		// that was interrupted
+		status := c.doInstruction(jsrintOpcode, absoluteAddress)
+		return status
+	}
+
 	opCode := c.ReadDataMemory(absoluteAddress)
 	c.PC++
 	status := c.doInstruction(opCode, absoluteAddress)
@@ -213,6 +240,14 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		return (0)
 	}
 
+	// DI
+	if opCode == diOpcode {
+		snapShot.disassemblyString = fmt.Sprintf("DI | %s", stackString)
+		History.logInstruction(snapShot)
+		c.IntCtlLow = c.IntCtlLow & 0xFE
+		return 0
+	}
+
 	// DOLIT l
 	if opCode == doLitOpcode {
 		snapShot.disassemblyString = fmt.Sprintf("DO_LIT %04X | %s", inlineOperand, stackString)
@@ -261,6 +296,15 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		return (0)
 	}
 
+	// EI
+	if opCode == eiOpcode {
+		snapShot.disassemblyString = fmt.Sprintf("EI | %s", stackString)
+		History.logInstruction(snapShot)
+		fmt.Printf("Enabling Interrupts")
+		c.IntCtlLow |= 0x0001
+		return 0
+	}
+
 	// d FETCH
 	if opCode == fetchOpcode {
 		snapShot.disassemblyString = fmt.Sprintf("[%04X] FETCH | %s", rightOperand, stackString)
@@ -296,9 +340,48 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		return (0)
 	}
 
+	// JSRINT
+	if opCode == jsrintOpcode {
+		// fmt.Printf("Entered JSRINT\n")
+		tmpRSP := c.RSP
+		c.rPush(c.DS)
+		c.rPush(c.cs)
+		c.rPush(c.ES)
+		c.rPush(c.PSP)
+		c.rPush(c.PTOS)
+		// fmt.Printf("  saving PC %4X\n", c.PC)
+		c.rPush(c.PC)
+		c.rPush(uint16(c.IntCtlLow))
+		c.rPush(tmpRSP)
+
+		c.IntCtlLow = c.IntCtlLow & 0xFE
+		// fmt.Printf("intctl low is now %04X\n", c.IntCtlLow)
+		c.PC = 0xFD00
+		c.cs = 0x0000
+		return 0
+	}
+
+	// RETI
+	if opCode == retiOpcode {
+		snapShot.disassemblyString = fmt.Sprintf("RETI | %s", stackString)
+		History.logInstruction(snapShot)
+
+		// fmt.Printf("entered RETI\n")
+		tmpRSP := c.rPop()
+		c.IntCtlLow = uint8(c.rPop())
+		c.PC = c.rPop()
+		c.PTOS = c.rPop()
+		c.PSP = c.rPop()
+		c.ES = c.rPop()
+		c.cs = c.rPop()
+		c.DS = c.rPop()
+		c.RSP = tmpRSP
+		return 0
+	}
+
 	// HALT
 	if opCode == haltOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("HALT")
+		snapShot.disassemblyString = fmt.Sprintf("HALT | %s", stackString)
 		History.logInstruction(snapShot)
 		return (1)
 	}

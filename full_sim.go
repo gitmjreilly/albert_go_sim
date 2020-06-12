@@ -1,7 +1,9 @@
 package main
 
 import (
+	"albert_go_sim/counter"
 	"albert_go_sim/cpu"
+	"albert_go_sim/interruptcontroller"
 	"albert_go_sim/serialport"
 	"bufio"
 	"fmt"
@@ -13,12 +15,14 @@ import (
 
 var mycpu cpu.CPU
 var ram Memory
+var counter1 counter.Counter
 
 var isKeyboardInterrupt bool = false
 
 // SerialPort1 is the console
 //
 var SerialPort1 serialport.SerialPort
+var interruptController1 interruptcontroller.InterruptController
 
 // Memory matches hardware
 type Memory struct {
@@ -30,6 +34,11 @@ func (m *Memory) read(address uint16) uint16 {
 		address -= 0xF000
 		return SerialPort1.Read(address)
 	}
+	if address >= 0xF010 && address <= 0xF01F {
+		address -= 0xF010
+		return interruptController1.Read(address)
+	}
+
 	return (m.memory[address])
 }
 
@@ -39,6 +48,11 @@ func (m *Memory) write(address uint16, value uint16) {
 		SerialPort1.Write(address, value)
 
 	}
+	if address >= 0xF010 && address <= 0xF01F {
+		address -= 0xF010
+		interruptController1.Write(address, value)
+	}
+
 	m.memory[address] = value
 }
 
@@ -129,12 +143,14 @@ func load403File() {
 // Init initializes the global runtime for the simulator
 func Init() {
 	SerialPort1.Init()
+	interruptController1.Callbacks[0] = counter1.CounterIsZero
 
 	mycpu.Init()
 
 	mycpu.ReadCodeMemory = ram.read
 	mycpu.ReadDataMemory = ram.read
 	mycpu.WriteDataMemory = ram.write
+	mycpu.InterruptCallback = interruptController1.GetOutput
 
 	loadPatsLoader()
 
@@ -142,7 +158,6 @@ func Init() {
 		signalChannel := make(chan os.Signal, 2)
 		// When SIGINT occurs send signal to signalChannel
 		signal.Notify(signalChannel, os.Interrupt)
-		fmt.Printf("goroutine is waiting for a keyboard interrupt\n")
 		for {
 			<-signalChannel
 			isKeyboardInterrupt = true
@@ -154,7 +169,6 @@ func Init() {
 func runSimulator(mode int) {
 
 	fmt.Printf("Running simulator\n")
-	numCyclesPerInstruction := 8
 	numSecondsTick := 0
 	numClockTicks := 1
 	humanTime := 0.0
@@ -178,10 +192,8 @@ func runSimulator(mode int) {
 
 		}
 		SerialPort1.Tick()
-
-		if numClockTicks%numCyclesPerInstruction != 0 {
-			continue
-		}
+		counter1.Tick()
+		interruptController1.Tick()
 
 		status := mycpu.Tick()
 		if status != 0 {
