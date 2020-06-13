@@ -1,6 +1,7 @@
 package main
 
 import (
+	"albert_go_sim/cli"
 	"albert_go_sim/counter"
 	"albert_go_sim/cpu"
 	"albert_go_sim/interruptcontroller"
@@ -54,6 +55,29 @@ func (m *Memory) write(address uint16, value uint16) {
 	}
 
 	m.memory[address] = value
+}
+
+// dump is an interactive function which lets the user
+// specify an area of memory to dump
+func (m *Memory) dump() {
+	s := cli.RawInput("Enter starting address (in hex) >")
+
+	n, _ := strconv.ParseUint(s, 16, 32)
+	startingAddress := uint16(n)
+
+	size := uint16(16)
+
+	for i := uint16(0); i < size; i++ {
+		var s string
+		workingAddress := startingAddress + i
+		value := m.read(workingAddress)
+		if value >= 32 && value <= 126 {
+			s = fmt.Sprintf("%s", string(value))
+		} else {
+			s = "NP"
+		}
+		fmt.Printf("  %04X: %04X %3s\n", workingAddress, value, s)
+	}
 }
 
 func loadPatsLoader() {
@@ -209,6 +233,7 @@ func runSimulator(mode int) {
 func helpMessage() {
 	fmt.Printf("HELP\n")
 	fmt.Printf("   r - run the simulator\n")
+	fmt.Printf("   m - dump memory\n")
 	fmt.Printf("   H - display history\n")
 	fmt.Printf("   q - quit the simulator\n")
 }
@@ -217,13 +242,8 @@ func main() {
 
 	Init()
 
-	scanner := bufio.NewScanner(os.Stdin)
-
 	for {
-		fmt.Printf("Simulator (h for help) >")
-		scanner.Scan()
-		selection := scanner.Text()
-		fmt.Printf("Your selection was [%s]\n", selection)
+		selection := cli.RawInput("Simulator (h for help) >")
 
 		if selection == "h" {
 			helpMessage()
@@ -238,6 +258,10 @@ func main() {
 		if selection == "r" {
 			runSimulator(0)
 			continue
+		}
+
+		if selection == "m" {
+			ram.dump()
 		}
 
 		if selection == "q" {
