@@ -14,11 +14,18 @@ import (
 	"time"
 )
 
+const (
+	numTicksPerSecond = 10000000
+)
+
 var mycpu cpu.CPU
 var ram Memory
 var counter1 counter.Counter
 
 var isKeyboardInterrupt bool = false
+var numClockTicks uint64 = 0
+var numSecondsTick uint32 = 0
+var humanTime uint32 = 0
 
 // SerialPort1 is the console
 //
@@ -198,9 +205,6 @@ func Init() {
 func runSimulator(mode int) {
 
 	fmt.Printf("Running simulator\n")
-	numSecondsTick := 0
-	numClockTicks := 1
-	humanTime := 0.0
 	for {
 		if isKeyboardInterrupt {
 			fmt.Printf("Simulation stopped by keyboard interrupt\n")
@@ -208,16 +212,12 @@ func runSimulator(mode int) {
 			break
 		}
 		numClockTicks++
-		if numClockTicks == 1000000000 {
-			break
-		}
 		numSecondsTick++
 
-		if numSecondsTick == 10000000 {
+		if numSecondsTick == numTicksPerSecond {
 			numSecondsTick = 0
 			humanTime++
-
-			fmt.Printf("human time %f\n", humanTime)
+			fmt.Printf("(simulated) elapsed time (secs)%5d\n", humanTime)
 
 		}
 		SerialPort1.Tick()
