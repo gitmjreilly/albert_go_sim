@@ -190,6 +190,11 @@ func Init() {
 	}()
 }
 
+// runSimulator increments the global time
+// and "drives" all of the hardware by calling
+// the Tick() functions.
+// mode == 0 for continuous running
+// mode == 1 for single stepping
 func runSimulator(mode int) {
 
 	fmt.Printf("Running simulator\n")
@@ -219,9 +224,28 @@ func runSimulator(mode int) {
 		counter1.Tick()
 		interruptController1.Tick()
 
+		// Check to see if caller only wants to single step
+		// because, if so, we may have to call Tick() multiple
+		// times before the cpu actually steps
+		if mode == 1 {
+			numTicks := 0
+			for {
+				status := mycpu.Tick()
+				fmt.Printf("Single Step mycpu.Tick() status was %d\n", status)
+				numTicks++
+				// Keep ticking until status is NOT tick only (100)
+				if status != 100 {
+					break
+				}
+			}
+			fmt.Printf("Single Stepped. NumTicks was %d\n", numTicks)
+			return
+		}
+
+		// If we got this far, we are in "continuous running mode"
 		status := mycpu.Tick()
-		if status != 0 {
-			fmt.Printf("Saw non zero cpu Tick status; breaking\n")
+		if status == 1 {
+			fmt.Printf("Saw cpu Tick status == 1 indicating a HALT; breaking\n")
 			fmt.Printf("Number of ticks since simulation started : %d\n", numClockTicks)
 			break
 		}
@@ -233,6 +257,7 @@ func runSimulator(mode int) {
 func helpMessage() {
 	fmt.Printf("HELP\n")
 	fmt.Printf("   r - run the simulator\n")
+	fmt.Printf("   s - STEP simulator")
 	fmt.Printf("   m - dump memory\n")
 	fmt.Printf("   H - display history\n")
 	fmt.Printf("   q - quit the simulator\n")
@@ -257,6 +282,11 @@ func main() {
 
 		if selection == "r" {
 			runSimulator(0)
+			continue
+		}
+
+		if selection == "s" {
+			runSimulator(1)
 			continue
 		}
 

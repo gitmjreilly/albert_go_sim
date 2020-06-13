@@ -5,6 +5,14 @@ import (
 	"fmt"
 )
 
+// These are constants indicating return status
+// from CPU.doInstruction
+const (
+	Normal  = iota
+	Halt    = iota
+	Unknown = iota
+)
+
 // Opcode values
 const (
 	andOpcode         = 27
@@ -139,10 +147,11 @@ func (c *CPU) consumeInstructionLiteral() uint16 {
 
 // Tick should be called for each "tick" of the virtual clock.
 // Return value indicates normal operation, halt seen or other TBD.
+// return values  0 = cpu stepped normally, 100 = tick only
 func (c *CPU) Tick() int {
 	c.tickNum = intmaxmin.IncMod(c.tickNum, 1, ticksPerInstruction)
 	if c.tickNum != 0 {
-		return (0)
+		return (100)
 	}
 
 	var absoluteAddress uint16 = c.cs<<4 + c.PC
@@ -164,6 +173,8 @@ func (c *CPU) Tick() int {
 // DoInstruction takes an opCode and its current absoluteAddress
 // It assumes the PC already points after the location where the
 // this opCode is stored.
+// return int const Normal, Halt or Unknown
+// return 1 for HALT
 func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 	var snapShot Status
 
@@ -210,7 +221,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		b := c.pop()
 		a := c.pop()
 		c.push(a & b)
-		return (0)
+		return (Normal)
 	}
 
 	// BRA dst
@@ -221,7 +232,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		destinationAddress := c.consumeInstructionLiteral() + scaledCS
 		c.PC = destinationAddress
 
-		return (0)
+		return Normal
 	}
 
 	// f JMPF dst
@@ -235,7 +246,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 			c.PC = destinationAddress
 		}
 
-		return (0)
+		return Normal
 	}
 
 	// DI
@@ -243,7 +254,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		snapShot.disassemblyString = fmt.Sprintf("DI | %s", stackString)
 		History.logInstruction(snapShot)
 		c.IntCtlLow = c.IntCtlLow & 0xFE
-		return 0
+		return Normal
 	}
 
 	// DOLIT l
@@ -254,7 +265,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		l := c.consumeInstructionLiteral()
 		c.push(l)
 
-		return (0)
+		return Normal
 	}
 
 	// a DROP
@@ -264,7 +275,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 		c.pop()
 
-		return (0)
+		return Normal
 	}
 
 	// a DUP
@@ -275,7 +286,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		a := c.pop()
 		c.push(a)
 		c.push(a)
-		return (0)
+		return Normal
 	}
 
 	// a b EQUAL
@@ -291,7 +302,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 			c.push(false)
 		}
 
-		return (0)
+		return Normal
 	}
 
 	// EI
@@ -299,7 +310,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		snapShot.disassemblyString = fmt.Sprintf("EI | %s", stackString)
 		History.logInstruction(snapShot)
 		c.IntCtlLow |= 0x0001
-		return 0
+		return Normal
 	}
 
 	// d FETCH
@@ -311,7 +322,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		v := c.ReadDataMemory(destinationAddress)
 		c.push(v)
 
-		return (0)
+		return Normal
 	}
 
 	// (RTOS) FROM_R
@@ -322,7 +333,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		a := c.rPop()
 		c.push(a)
 
-		return (0)
+		return Normal
 	}
 
 	// JSR d
@@ -334,7 +345,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		c.rPush(c.PC)
 		c.PC = destinationAddress
 
-		return (0)
+		return Normal
 	}
 
 	// JSRINT
@@ -352,7 +363,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		c.IntCtlLow = c.IntCtlLow & 0xFE
 		c.PC = 0xFD00
 		c.cs = 0x0000
-		return 0
+		return Normal
 	}
 
 	// RETI
@@ -369,14 +380,14 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		c.cs = c.rPop()
 		c.DS = c.rPop()
 		c.RSP = tmpRSP
-		return 0
+		return Normal
 	}
 
 	// HALT
 	if opCode == haltOpcode {
 		snapShot.disassemblyString = fmt.Sprintf("HALT | %s", stackString)
 		History.logInstruction(snapShot)
-		return (1)
+		return Halt
 	}
 
 	// a b LESS
@@ -391,7 +402,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		} else {
 			c.push(false)
 		}
-		return (0)
+		return Normal
 	}
 
 	// L_VAR n
@@ -403,7 +414,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		// tempRTOS := c.rPop()
 		// c.rPush(tempRTOS)
 		c.push(offset + c.RTOS)
-		return (0)
+		return Normal
 
 	}
 
@@ -415,7 +426,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		b := c.pop()
 		a := c.pop()
 		c.push(a * b)
-		return (0)
+		return Normal
 	}
 
 	// a NEG?
@@ -429,7 +440,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		} else {
 			c.push(false)
 		}
-		return (0)
+		return Normal
 	}
 
 	// NOP
@@ -437,7 +448,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		snapShot.disassemblyString = fmt.Sprintf("NOP | %s", stackString)
 		History.logInstruction(snapShot)
 
-		return (0)
+		return Normal
 
 	}
 
@@ -450,7 +461,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		a := c.pop()
 		c.push(a | b)
 
-		return (0)
+		return Normal
 	}
 
 	// a b +
@@ -461,7 +472,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		b := c.pop()
 		a := c.pop()
 		c.push(a + b)
-		return (0)
+		return Normal
 	}
 
 	// RET
@@ -471,7 +482,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 		c.PC = c.rPop()
 
-		return 0
+		return Normal
 	}
 
 	// R_FETCH
@@ -480,7 +491,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		History.logInstruction(snapShot)
 
 		c.push(c.RTOS)
-		return 0
+		return Normal
 	}
 
 	// SP_FETCH
@@ -488,7 +499,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		snapShot.disassemblyString = fmt.Sprintf("[PSP: %04X] SP_FETCH | %s", pspOperand, stackString)
 		History.logInstruction(snapShot)
 		c.push(c.PSP)
-		return 0
+		return Normal
 	}
 
 	// SP_STORE
@@ -497,7 +508,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		History.logInstruction(snapShot)
 
 		c.PSP = c.PTOS
-		return 0
+		return Normal
 	}
 
 	// val addr STORE
@@ -509,7 +520,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		val := c.pop()
 		c.WriteDataMemory(destinationAddress, val)
 
-		return 0
+		return Normal
 	}
 
 	// addr val STORE2
@@ -521,7 +532,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		destinationAddress := c.pop() + scaledDS
 		c.WriteDataMemory(destinationAddress, val)
 
-		return 0
+		return Normal
 	}
 
 	// a b -
@@ -532,7 +543,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		b := c.pop()
 		a := c.pop()
 		c.push(a - b)
-		return (0)
+		return Normal
 
 	}
 
@@ -546,7 +557,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		c.push(b)
 		c.push(a)
 
-		return 0
+		return Normal
 	}
 
 	// a TO_R
@@ -557,7 +568,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		a := c.pop()
 		c.rPush(a)
 
-		return 0
+		return Normal
 
 	}
 
@@ -570,9 +581,9 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		a := c.pop()
 		c.push(a ^ b)
 
-		return (0)
+		return Normal
 	}
 
 	fmt.Printf("Unknown opcode [%04X] address [%08X]\n", opCode, absoluteAddress)
-	return (2)
+	return Unknown
 }
