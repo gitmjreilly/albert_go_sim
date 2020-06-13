@@ -231,9 +231,8 @@ func runSimulator(mode int) {
 			numTicks := 0
 			for {
 				status := mycpu.Tick()
-				fmt.Printf("Single Step mycpu.Tick() status was %d\n", status)
 				numTicks++
-				// Keep ticking until status is NOT tick only (100)
+				// Keep ticking until status is NOT "tick only" (100)
 				if status != 100 {
 					break
 				}
@@ -244,7 +243,7 @@ func runSimulator(mode int) {
 
 		// If we got this far, we are in "continuous running mode"
 		status := mycpu.Tick()
-		if status == 1 {
+		if status == cpu.Halt {
 			fmt.Printf("Saw cpu Tick status == 1 indicating a HALT; breaking\n")
 			fmt.Printf("Number of ticks since simulation started : %d\n", numClockTicks)
 			break
@@ -287,6 +286,7 @@ func main() {
 
 		if selection == "s" {
 			runSimulator(1)
+			mycpu.ShowStatus()
 			continue
 		}
 

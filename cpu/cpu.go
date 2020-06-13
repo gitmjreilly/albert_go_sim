@@ -93,6 +93,16 @@ func (c *CPU) Init() {
 
 }
 
+// ShowStatus prints the internal state of the CPU
+func (c *CPU) ShowStatus() {
+	fmt.Printf("CPU State :\n")
+	fmt.Printf("PC    : %04X\n", c.PC)
+	fmt.Printf("PTOS  : %04X  RTOS : %04X\n", c.PTOS, c.RTOS)
+	fmt.Printf("PSP   : %04X  RSP  : %04X\n", c.PSP, c.RSP)
+	fmt.Printf("Interrupt state %v\n", c.InterruptCallback())
+	fmt.Printf("\n")
+}
+
 // SetPC allows direct setting of the the cpu's PC
 func (c *CPU) SetPC(pc uint16) {
 	c.PC = pc
