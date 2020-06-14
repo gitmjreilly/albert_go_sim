@@ -2,6 +2,7 @@ package main
 
 import (
 	"albert_go_sim/cli"
+	"albert_go_sim/clock"
 	"albert_go_sim/counter"
 	"albert_go_sim/cpu"
 	"albert_go_sim/interruptcontroller"
@@ -21,6 +22,7 @@ const (
 var mycpu cpu.CPU
 var ram Memory
 var counter1 counter.Counter
+var clock1 clock.Clock
 
 var isKeyboardInterrupt bool = false
 var numClockTicks uint64 = 0
@@ -176,6 +178,9 @@ func Init() {
 	SerialPort1.Init()
 	interruptController1.Callbacks[0] = counter1.CounterIsZero
 
+	clock1.Frequency = 10000000
+	clock1.DoPrint = true
+
 	mycpu.Init()
 
 	mycpu.ReadCodeMemory = ram.read
@@ -211,15 +216,19 @@ func runSimulator(mode int) {
 			isKeyboardInterrupt = false
 			break
 		}
-		numClockTicks++
-		numSecondsTick++
 
-		if numSecondsTick == numTicksPerSecond {
-			numSecondsTick = 0
-			humanTime++
-			fmt.Printf("(simulated) elapsed time (secs)%5d\n", humanTime)
+		clock1.Tick()
 
-		}
+		// numClockTicks++
+		// numSecondsTick++
+
+		// if numSecondsTick == numTicksPerSecond {
+		// 	numSecondsTick = 0
+		// 	humanTime++
+		// 	fmt.Printf("(simulated) elapsed time (secs)%5d\n", humanTime)
+
+		// }
+
 		SerialPort1.Tick()
 		counter1.Tick()
 		interruptController1.Tick()
