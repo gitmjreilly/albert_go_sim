@@ -188,7 +188,6 @@ func (c *CPU) Tick() int {
 func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 	var snapShot Status
 
-	// snapShot.disassemblyString := fmt.Sprintf("%08x : ", absoluteAddress)
 	scaledCS := uint16(c.cs << 4)
 	scaledDS := uint16(c.DS << 4)
 	// scaledES := c.ES << 4
@@ -205,27 +204,22 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 	}
 	rstackBuffer[0] = c.RTOS
 
-	// stackString := fmt.Sprintf("PSTACK => %04X %04X %04X PTOS: %04X RSTACK => %04X %04X %04X RTOS: %04X",
-	// 	pstackBuffer[3], pstackBuffer[2], pstackBuffer[1], pstackBuffer[0],
-	// 	rstackBuffer[3], rstackBuffer[2], rstackBuffer[1], rstackBuffer[0])
-
 	// Create a bunch of short cut names for uuse witth the  disasembbly
 	leftOperand := c.ReadDataMemory(scaledDS + c.PSP - 1)
 	rightOperand := c.PTOS
 	inlineOperand := c.ReadDataMemory(c.PC + scaledCS)
-	rtosOperand := c.RTOS
-	pspOperand := c.PSP
 
 	snapShot.absoluteAddress = absoluteAddress
 	snapShot.cpuStruct = *c
 	snapShot.pStack = pstackBuffer
 	snapShot.rStack = rstackBuffer
 	snapShot.opCode = opCode
-	stackString := ""
+	snapShot.leftOperand = leftOperand
+	snapShot.rightOperand = rightOperand
+	snapShot.inlineOperand = inlineOperand
 
 	// a b AND
 	if opCode == andOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("[%04X %04X] AND | %s", leftOperand, rightOperand, stackString)
 		History.logInstruction(snapShot)
 
 		b := c.pop()
@@ -236,7 +230,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// BRA dst
 	if opCode == branchOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("BRA %04X | %s", inlineOperand, stackString)
 		History.logInstruction(snapShot)
 
 		destinationAddress := c.consumeInstructionLiteral() + scaledCS
@@ -247,7 +240,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// f JMPF dst
 	if opCode == branchFalseOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("[%04X] JMPF %04X | %s", rightOperand, inlineOperand, stackString)
 		History.logInstruction(snapShot)
 
 		flag := c.pop()
@@ -261,7 +253,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// DI
 	if opCode == diOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("DI | %s", stackString)
 		History.logInstruction(snapShot)
 		c.IntCtlLow = c.IntCtlLow & 0xFE
 		return Normal
@@ -269,7 +260,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// DOLIT l
 	if opCode == doLitOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("DO_LIT %04X | %s", inlineOperand, stackString)
 		History.logInstruction(snapShot)
 
 		l := c.consumeInstructionLiteral()
@@ -280,7 +270,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// a DROP
 	if opCode == dropOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("[%04X] DROP | %s", rightOperand, stackString)
 		History.logInstruction(snapShot)
 
 		c.pop()
@@ -290,7 +279,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// a DUP
 	if opCode == dupOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("[%04X] DUP | %s", rightOperand, stackString)
 		History.logInstruction(snapShot)
 
 		a := c.pop()
@@ -301,7 +289,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// a b EQUAL
 	if opCode == equallOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("[%04X %04X] EQUAL | %s", leftOperand, rightOperand, stackString)
 		History.logInstruction(snapShot)
 
 		b := c.pop()
@@ -317,7 +304,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// EI
 	if opCode == eiOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("EI | %s", stackString)
 		History.logInstruction(snapShot)
 		c.IntCtlLow |= 0x0001
 		return Normal
@@ -325,7 +311,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// d FETCH
 	if opCode == fetchOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("[%04X] FETCH | %s", rightOperand, stackString)
 		History.logInstruction(snapShot)
 
 		destinationAddress := c.pop() + scaledDS
@@ -337,7 +322,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// (RTOS) FROM_R
 	if opCode == fromROpcode {
-		snapShot.disassemblyString = fmt.Sprintf("[RTOS: %04X] FROM_R | %s", rtosOperand, stackString)
 		History.logInstruction(snapShot)
 
 		a := c.rPop()
@@ -348,7 +332,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// JSR d
 	if opCode == jsrOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("JSR %04X | %s", inlineOperand, stackString)
 		History.logInstruction(snapShot)
 
 		destinationAddress := c.consumeInstructionLiteral()
@@ -378,7 +361,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// RETI
 	if opCode == retiOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("RETI | %s", stackString)
 		History.logInstruction(snapShot)
 
 		tmpRSP := c.rPop()
@@ -395,14 +377,12 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// HALT
 	if opCode == haltOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("HALT | %s", stackString)
 		History.logInstruction(snapShot)
 		return Halt
 	}
 
 	// a b LESS
 	if opCode == lessOpcode || opCode == sLessOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("[%04X %04X] LESS | %s", leftOperand, rightOperand, stackString)
 		History.logInstruction(snapShot)
 
 		b := int16(c.pop())
@@ -417,7 +397,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// L_VAR n
 	if opCode == lvarOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("L_VAR %004X | %s", inlineOperand, stackString)
 		History.logInstruction(snapShot)
 
 		offset := c.consumeInstructionLiteral()
@@ -430,7 +409,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// a b *
 	if opCode == mulOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("[%04X %04X] MUL | %s", leftOperand, rightOperand, stackString)
 		History.logInstruction(snapShot)
 
 		b := c.pop()
@@ -441,7 +419,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// a NEG?
 	if opCode == negOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("[%04X] NEG? | %s", rightOperand, stackString)
 		History.logInstruction(snapShot)
 
 		a := int16(c.pop())
@@ -455,7 +432,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// NOP
 	if opCode == nopOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("NOP | %s", stackString)
 		History.logInstruction(snapShot)
 
 		return Normal
@@ -464,7 +440,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// a b OR
 	if opCode == orOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("[%04X %04X] OR | %s", leftOperand, rightOperand, stackString)
 		History.logInstruction(snapShot)
 
 		b := c.pop()
@@ -476,7 +451,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// a b +
 	if opCode == plusOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("[%04X %04X] PLUS | %s", leftOperand, rightOperand, stackString)
 		History.logInstruction(snapShot)
 
 		b := c.pop()
@@ -487,7 +461,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// RET
 	if opCode == retOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("RET [%04X] | %s", c.RTOS, stackString)
 		History.logInstruction(snapShot)
 
 		c.PC = c.rPop()
@@ -497,7 +470,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// R_FETCH
 	if opCode == rFetchOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("[RTOS: %04X] R_FETCH | %s", rtosOperand, stackString)
 		History.logInstruction(snapShot)
 
 		c.push(c.RTOS)
@@ -506,7 +478,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// SP_FETCH
 	if opCode == spFetchOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("[PSP: %04X] SP_FETCH | %s", pspOperand, stackString)
 		History.logInstruction(snapShot)
 		c.push(c.PSP)
 		return Normal
@@ -514,7 +485,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// SP_STORE
 	if opCode == spStoreOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("[PTOS: %04X] SP_STORE | %s", rightOperand, stackString)
 		History.logInstruction(snapShot)
 
 		c.PSP = c.PTOS
@@ -523,7 +493,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// val addr STORE
 	if opCode == storeOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("[%04X %04X] STORE | %s", leftOperand, rightOperand, stackString)
 		History.logInstruction(snapShot)
 
 		destinationAddress := c.pop() + scaledDS
@@ -535,7 +504,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// addr val STORE2
 	if opCode == store2Opcode {
-		snapShot.disassemblyString = fmt.Sprintf("[%04X %04X] STORE | %s", leftOperand, rightOperand, stackString)
 		History.logInstruction(snapShot)
 
 		val := c.pop()
@@ -547,7 +515,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// a b -
 	if opCode == subOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("[%04X %04X] SUB | %s", leftOperand, rightOperand, stackString)
 		History.logInstruction(snapShot)
 
 		b := c.pop()
@@ -559,7 +526,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// a b SWAP
 	if opCode == swapOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("[%04X %04X] SWAP | %s", leftOperand, rightOperand, stackString)
 		History.logInstruction(snapShot)
 
 		b := c.pop()
@@ -572,7 +538,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// a TO_R
 	if opCode == toROpcode {
-		snapShot.disassemblyString = fmt.Sprintf("[PTOS: %04X] TO_R | %s", rightOperand, stackString)
 		History.logInstruction(snapShot)
 
 		a := c.pop()
@@ -584,7 +549,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	// a b XOR
 	if opCode == xorOpcode {
-		snapShot.disassemblyString = fmt.Sprintf("[%04X %04X] XOR | %s", leftOperand, rightOperand, stackString)
 		History.logInstruction(snapShot)
 
 		b := c.pop()
