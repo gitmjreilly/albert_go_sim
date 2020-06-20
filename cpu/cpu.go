@@ -15,40 +15,40 @@ const (
 
 // Opcode values
 const (
-	andOpcode         = 27
-	branchOpcode      = 4
-	branchFalseOpcode = 12
-	diOpcode          = 37
-	doLitOpcode       = 2
-	dropOpcode        = 7
-	dupOpcode         = 19
-	eiOpcode          = 35
-	equallOpcode      = 31
-	fetchOpcode       = 9
-	fromROpcode       = 14
-	haltOpcode        = 3
-	jsrOpcode         = 10
-	jsrintOpcode      = 33
-	lessOpcode        = 5
-	lvarOpcode        = 51
-	mulOpcode         = 30
-	negOpcode         = 26
-	nopOpcode         = 1
-	orOpcode          = 28
-	overOpcode        = 22
-	plusOpcode        = 24
-	rFetchOpcode      = 18
-	retOpcode         = 11
-	retiOpcode        = 34
-	sLessOpcode       = 50
-	spFetchOpcode     = 20
-	spStoreOpcode     = 23
-	storeOpcode       = 8
-	store2Opcode      = 52
-	subOpcode         = 25
-	swapOpcode        = 21
-	toROpcode         = 13
-	xorOpcode         = 29
+	andOpcode         = 27 // Done
+	branchOpcode      = 4  // Done
+	branchFalseOpcode = 12 // Done
+	diOpcode          = 37 // Done
+	doLitOpcode       = 2  // Done
+	dropOpcode        = 7  // Done
+	dupOpcode         = 19 // Done
+	eiOpcode          = 35 // Done
+	equallOpcode      = 31 //  Done
+	fetchOpcode       = 9  // Done
+	fromROpcode       = 14 // Done
+	haltOpcode        = 3  // Done
+	jsrOpcode         = 10 // Done
+	jsrintOpcode      = 33 // Done
+	lessOpcode        = 5  // Done and Properly signed
+	lvarOpcode        = 51 // Done
+	mulOpcode         = 30 // Done
+	negOpcode         = 26 // Properly Signed and Done
+	nopOpcode         = 1  // Done
+	orOpcode          = 28 // done
+	overOpcode        = 22 // Done
+	plusOpcode        = 24 // Done
+	rFetchOpcode      = 18 // Done
+	retOpcode         = 11 // Done
+	retiOpcode        = 34 // Done
+	sLessOpcode       = 50 // Done
+	spFetchOpcode     = 20 // Done
+	spStoreOpcode     = 23 // Done
+	storeOpcode       = 8  // Done
+	store2Opcode      = 52 // Done
+	subOpcode         = 25 // Done
+	swapOpcode        = 21 // Done
+	toROpcode         = 13 // Done
+	xorOpcode         = 29 // Done
 )
 
 const (
@@ -225,6 +225,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		b := c.pop()
 		a := c.pop()
 		c.push(a & b)
+
 		return (Normal)
 	}
 
@@ -254,7 +255,9 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 	// DI
 	if opCode == diOpcode {
 		History.logInstruction(snapShot)
+
 		c.IntCtlLow = c.IntCtlLow & 0xFE
+
 		return Normal
 	}
 
@@ -284,6 +287,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		a := c.pop()
 		c.push(a)
 		c.push(a)
+
 		return Normal
 	}
 
@@ -305,7 +309,9 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 	// EI
 	if opCode == eiOpcode {
 		History.logInstruction(snapShot)
+
 		c.IntCtlLow |= 0x0001
+
 		return Normal
 	}
 
@@ -342,6 +348,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 	}
 
 	// JSRINT
+	// rPush sequence should match rPop sequene in RETI
 	if opCode == jsrintOpcode {
 		tmpRSP := c.RSP
 		c.rPush(c.DS)
@@ -356,10 +363,12 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		c.IntCtlLow = c.IntCtlLow & 0xFE
 		c.PC = 0xFD00
 		c.cs = 0x0000
+
 		return Normal
 	}
 
 	// RETI
+	// rPop sequence should match rPush sequene in JSRINT
 	if opCode == retiOpcode {
 		History.logInstruction(snapShot)
 
@@ -372,16 +381,23 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		c.cs = c.rPop()
 		c.DS = c.rPop()
 		c.RSP = tmpRSP
+
 		return Normal
 	}
 
 	// HALT
 	if opCode == haltOpcode {
 		History.logInstruction(snapShot)
+
 		return Halt
 	}
 
 	// a b LESS
+	// a b S_LESS
+	// (accidentally implemented signed less twice!)
+	// Notice we have to cast stack  values
+	// to int16 because all 16 bit values in
+	// simulation are considered signed
 	if opCode == lessOpcode || opCode == sLessOpcode {
 		History.logInstruction(snapShot)
 
@@ -392,6 +408,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		} else {
 			c.push(false)
 		}
+
 		return Normal
 	}
 
@@ -400,11 +417,9 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		History.logInstruction(snapShot)
 
 		offset := c.consumeInstructionLiteral()
-		// tempRTOS := c.rPop()
-		// c.rPush(tempRTOS)
 		c.push(offset + c.RTOS)
-		return Normal
 
+		return Normal
 	}
 
 	// a b *
@@ -414,10 +429,14 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		b := c.pop()
 		a := c.pop()
 		c.push(a * b)
+
 		return Normal
 	}
 
 	// a NEG?
+	// Notice we have to cast stack  value
+	// to int16 because all 16 bit values in
+	// simulation are considered signed
 	if opCode == negOpcode {
 		History.logInstruction(snapShot)
 
@@ -427,6 +446,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		} else {
 			c.push(false)
 		}
+
 		return Normal
 	}
 
@@ -434,8 +454,9 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 	if opCode == nopOpcode {
 		History.logInstruction(snapShot)
 
-		return Normal
+		// Do nothing
 
+		return Normal
 	}
 
 	// a b OR
@@ -449,6 +470,23 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		return Normal
 	}
 
+	//  OVER
+	//  BEFORE   AFTER
+	//           x
+	//  n        n
+	//  x        x
+	if opCode == overOpcode {
+		History.logInstruction(snapShot)
+
+		n := c.pop()
+		x := c.pop()
+		c.push(x)
+		c.push(n)
+		c.push(x)
+
+		return Normal
+	}
+
 	// a b +
 	if opCode == plusOpcode {
 		History.logInstruction(snapShot)
@@ -456,6 +494,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		b := c.pop()
 		a := c.pop()
 		c.push(a + b)
+
 		return Normal
 	}
 
@@ -473,13 +512,16 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		History.logInstruction(snapShot)
 
 		c.push(c.RTOS)
+
 		return Normal
 	}
 
 	// SP_FETCH
 	if opCode == spFetchOpcode {
 		History.logInstruction(snapShot)
+
 		c.push(c.PSP)
+
 		return Normal
 	}
 
@@ -520,8 +562,8 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		b := c.pop()
 		a := c.pop()
 		c.push(a - b)
-		return Normal
 
+		return Normal
 	}
 
 	// a b SWAP
@@ -544,7 +586,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		c.rPush(a)
 
 		return Normal
-
 	}
 
 	// a b XOR
