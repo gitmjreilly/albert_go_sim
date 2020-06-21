@@ -15,40 +15,59 @@ const (
 
 // Opcode values
 const (
-	andOpcode         = 27 // Done
-	branchOpcode      = 4  // Done
-	branchFalseOpcode = 12 // Done
-	diOpcode          = 37 // Done
-	doLitOpcode       = 2  // Done
-	dropOpcode        = 7  // Done
-	dupOpcode         = 19 // Done
-	eiOpcode          = 35 // Done
-	equallOpcode      = 31 //  Done
-	fetchOpcode       = 9  // Done
-	fromROpcode       = 14 // Done
-	haltOpcode        = 3  // Done
-	jsrOpcode         = 10 // Done
-	jsrintOpcode      = 33 // Done
-	lessOpcode        = 5  // Done and Properly signed
-	lvarOpcode        = 51 // Done
-	mulOpcode         = 30 // Done
-	negOpcode         = 26 // Properly Signed and Done
-	nopOpcode         = 1  // Done
-	orOpcode          = 28 // done
-	overOpcode        = 22 // Done
-	plusOpcode        = 24 // Done
-	rFetchOpcode      = 18 // Done
-	retOpcode         = 11 // Done
-	retiOpcode        = 34 // Done
-	sLessOpcode       = 50 // Done
-	spFetchOpcode     = 20 // Done
-	spStoreOpcode     = 23 // Done
-	storeOpcode       = 8  // Done
-	store2Opcode      = 52 // Done
-	subOpcode         = 25 // Done
-	swapOpcode        = 21 // Done
-	toROpcode         = 13 // Done
-	xorOpcode         = 29 // Done
+	andOpcode         = 27  // Done - OK
+	branchOpcode      = 4   // Done - OK
+	branchFalseOpcode = 12  // Done - OK
+	csFetchOpcode     = 43  // untested
+	diOpcode          = 37  // untested
+	doLitOpcode       = 2   // Done - OK
+	dropOpcode        = 7   // Done - OK
+	dsFetchOpcode     = 42  // untested
+	dupOpcode         = 19  // Done - OK
+	eiOpcode          = 35  // Done - OK
+	equallOpcode      = 31  // Done - OK
+	esFetchOpcode     = 41  // untested
+	fetchOpcode       = 9   // Done - OK
+	fromROpcode       = 14  // Done - OK
+	haltOpcode        = 3   // Done - OK
+	jsrOpcode         = 10  // Done - OK
+	jsrintOpcode      = 33  // Done - OK
+	kSpStoreOpcode    = 47  // Done
+	lessOpcode        = 5   // Done - OK
+	longFetchOpcode   = 44  // untested
+	longStoreOpcode   = 45  // untested
+	longTypeStore     = 999 // Not implemented yet (see Python version)
+	lvarOpcode        = 51  // Done - OK
+	mulOpcode         = 30  // Done - OK
+	negOpcode         = 26  // Properly Signed and Done
+	nopOpcode         = 1   // Done - OK
+	orOpcode          = 28  // done - OK
+	overOpcode        = 22  // untested
+	plusOpcode        = 24  // Done - OK
+	plusPlusOpcode    = 6   // untested
+	popFOpcode        = 49  // untested
+	pushFOpcode       = 48  // untested
+	rFetchOpcode      = 18  // Done
+	retOpcode         = 11  // Done - OK
+	retiOpcode        = 34  // Done - OK
+	rpFetchOpcode     = 16  // untested
+	rpStoreOpcode     = 17  // untested
+	sLessOpcode       = 50  // Done - OK (Same as less)
+	sllOpcode         = 15  // untested
+	spFetchOpcode     = 20  // Done - OK
+	spStoreOpcode     = 23  // Done - OK
+	sraOpcode         = 36  // untested
+	srlOpcode         = 38  // untested
+	storeOpcode       = 8   // Done - OK
+	store2Opcode      = 52  // Done - OK
+	subOpcode         = 25  // Done - OK
+	swapOpcode        = 21  // Done
+	sysCallOpcode     = 46  // Done - OK
+	toDSOpcode        = 40  // untested
+	toESOpcode        = 39  // untested
+	toROpcode         = 13  // Done - OK
+	umPlusOpcode      = 32  // Not implemented yet
+	xorOpcode         = 29  // Done - OK
 )
 
 const (
@@ -190,7 +209,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 	scaledCS := uint16(c.cs << 4)
 	scaledDS := uint16(c.DS << 4)
-	// scaledES := c.ES << 4
+	scaledES := uint16(c.ES << 4)
 
 	var pstackBuffer [4]uint16
 	for i := 3; i > 0; i-- {
@@ -217,6 +236,8 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 	snapShot.leftOperand = leftOperand
 	snapShot.rightOperand = rightOperand
 	snapShot.inlineOperand = inlineOperand
+	snapShot.rtosOperand = c.RTOS
+	snapShot.pspOperand = c.PSP
 
 	// a b AND
 	if opCode == andOpcode {
@@ -252,6 +273,15 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		return Normal
 	}
 
+	// CS_FETCH
+	if opCode == csFetchOpcode {
+		History.logInstruction(snapShot)
+
+		c.push(c.cs)
+
+		return Normal
+	}
+
 	// DI
 	if opCode == diOpcode {
 		History.logInstruction(snapShot)
@@ -276,6 +306,15 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		History.logInstruction(snapShot)
 
 		c.pop()
+
+		return Normal
+	}
+
+	// DS_FETCH
+	if opCode == dsFetchOpcode {
+		History.logInstruction(snapShot)
+
+		c.push(c.DS)
 
 		return Normal
 	}
@@ -315,6 +354,15 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		return Normal
 	}
 
+	// ES_FETCH
+	if opCode == esFetchOpcode {
+		History.logInstruction(snapShot)
+
+		c.push(c.ES)
+
+		return Normal
+	}
+
 	// d FETCH
 	if opCode == fetchOpcode {
 		History.logInstruction(snapShot)
@@ -334,6 +382,17 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		c.push(a)
 
 		return Normal
+	}
+
+	// K_SP_STORE
+	if opCode == kSpStoreOpcode {
+		History.logInstruction(snapShot)
+
+		c.DS = 0x0000
+		c.PSP = c.PTOS
+
+		return Normal
+
 	}
 
 	// JSR d
@@ -422,6 +481,28 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		return Normal
 	}
 
+	// d LONG_FETCH
+	if opCode == longFetchOpcode {
+		History.logInstruction(snapShot)
+
+		destinationAddress := c.pop() + scaledES
+		v := c.ReadDataMemory(destinationAddress)
+		c.push(v)
+
+		return Normal
+	}
+
+	// val addr LONG_STORE
+	if opCode == longStoreOpcode {
+		History.logInstruction(snapShot)
+
+		destinationAddress := c.pop() + scaledES
+		val := c.pop()
+		c.WriteDataMemory(destinationAddress, val)
+
+		return Normal
+	}
+
 	// a b *
 	if opCode == mulOpcode {
 		History.logInstruction(snapShot)
@@ -498,6 +579,40 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		return Normal
 	}
 
+	// address PLUS_PLUS
+	if opCode == plusPlusOpcode {
+		History.logInstruction(snapShot)
+
+		address := c.pop()
+		c.push(address)
+		value := c.ReadDataMemory(address + scaledDS)
+		value++
+		c.WriteDataMemory(address, value)
+
+		return Normal
+	}
+
+	// POPF
+	// Restore the flags register
+	if opCode == popFOpcode {
+		History.logInstruction(snapShot)
+
+		flags := c.pop()
+		c.IntCtlLow = uint8(flags)
+
+		return Normal
+	}
+
+	// PUSHF
+	// Save the flags register
+	if opCode == pushFOpcode {
+		History.logInstruction(snapShot)
+
+		c.push(uint16(c.IntCtlLow))
+
+		return Normal
+	}
+
 	// RET
 	if opCode == retOpcode {
 		History.logInstruction(snapShot)
@@ -516,6 +631,33 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		return Normal
 	}
 
+	// RP_FETCH
+	if opCode == rpFetchOpcode {
+		History.logInstruction(snapShot)
+
+		c.push(c.RSP)
+
+		return Normal
+	}
+
+	// RP_STORE
+	if opCode == rpStoreOpcode {
+		History.logInstruction(snapShot)
+
+		c.RSP = c.pop()
+
+		return Normal
+	}
+
+	// SLL
+	if opCode == sllOpcode {
+		History.logInstruction(snapShot)
+
+		c.PTOS = c.PTOS << 1
+
+		return Normal
+	}
+
 	// SP_FETCH
 	if opCode == spFetchOpcode {
 		History.logInstruction(snapShot)
@@ -530,6 +672,26 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		History.logInstruction(snapShot)
 
 		c.PSP = c.PTOS
+
+		return Normal
+	}
+
+	// SRA
+	if opCode == sraOpcode {
+		History.logInstruction(snapShot)
+
+		signBit := c.PTOS & 0x8000
+		c.PTOS = signBit | (c.PTOS >> 1)
+
+		return Normal
+	}
+
+	// SRL
+	if opCode == srlOpcode {
+		History.logInstruction(snapShot)
+
+		c.PTOS = c.PTOS >> 1
+
 		return Normal
 	}
 
@@ -574,6 +736,46 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		a := c.pop()
 		c.push(b)
 		c.push(a)
+
+		return Normal
+	}
+
+	// SYSCALL
+	// rPush sequence should match rPop sequene in RETI
+	if opCode == sysCallOpcode {
+		History.logInstruction(snapShot)
+
+		tmpRSP := c.RSP
+		c.rPush(c.DS)
+		c.rPush(c.cs)
+		c.rPush(c.ES)
+		c.rPush(c.PSP)
+		c.rPush(c.PTOS)
+		c.rPush(c.PC)
+		c.rPush(uint16(c.IntCtlLow))
+		c.rPush(tmpRSP)
+
+		c.IntCtlLow = c.IntCtlLow & 0xFE
+		c.PC = 0xFD02
+		c.cs = 0x0000
+
+		return Normal
+	}
+
+	// a TO_DS
+	if opCode == toDSOpcode {
+		History.logInstruction(snapShot)
+
+		c.DS = c.pop()
+
+		return Normal
+	}
+
+	// a TO_ES
+	if opCode == toESOpcode {
+		History.logInstruction(snapShot)
+
+		c.ES = c.pop()
 
 		return Normal
 	}

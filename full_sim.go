@@ -126,12 +126,7 @@ func load403File() {
 
 	}
 
-	fmt.Printf("Enter 403 filename>")
-	// scanner := bufio.NewScanner(os.Stdin)
-
-	// scanner.Scan()
-	// filename := scanner.Text()
-	filename := "obj"
+	filename := cli.RawInput("Enter 403 file name >")
 	fileInfo, err := os.Stat(filename)
 	if err != nil {
 		fmt.Printf("Could not stat file [%s].  Returning\n", filename)
@@ -241,7 +236,9 @@ func runSimulator(mode int) {
 			for {
 				status := mycpu.Tick()
 				numTicks++
-				// Keep ticking until status is NOT "tick only" (100)
+				if status == cpu.Halt {
+					fmt.Printf("\n  *** Saw Halt instruction ***\n\n")
+				}
 				if status != 100 {
 					break
 				}
@@ -254,7 +251,7 @@ func runSimulator(mode int) {
 		status := mycpu.Tick()
 		if status == cpu.Halt {
 			fmt.Printf("Saw cpu Tick status == 1 indicating a HALT; breaking\n")
-			fmt.Printf("Number of ticks since simulation started : %d\n", numClockTicks)
+			fmt.Printf("Number of ticks since simulation started TOBEFIXED : %d\n", numClockTicks)
 			break
 		}
 
@@ -265,8 +262,10 @@ func runSimulator(mode int) {
 func helpMessage() {
 	fmt.Printf("HELP\n")
 	fmt.Printf("   r - run the simulator\n")
-	fmt.Printf("   s - STEP simulator")
+	fmt.Printf("   s - STEP simulator\n")
+	fmt.Printf("   l - load a 403 file\n")
 	fmt.Printf("   m - dump memory\n")
+	fmt.Printf("   S - show CPU status\n")
 	fmt.Printf("   H - display history\n")
 	fmt.Printf("   q - quit the simulator\n")
 }
@@ -288,8 +287,18 @@ func main() {
 			continue
 		}
 
+		if selection == "S" {
+			mycpu.ShowStatus()
+			continue
+		}
+
 		if selection == "r" {
 			runSimulator(0)
+			continue
+		}
+
+		if selection == "l" {
+			load403File()
 			continue
 		}
 

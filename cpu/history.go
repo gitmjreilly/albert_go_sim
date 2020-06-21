@@ -169,7 +169,9 @@ func createDisassemblyString(s Status) string {
 
 	// (RTOS) FROM_R
 	if opCode == fromROpcode {
-		disassemblyString := fmt.Sprintf("%08X  [RTOS: %04X] FROM_R | %s", absoluteAddress, rtosOperand, stackString)
+		instructionString := fmt.Sprintf("[RTOS: %04X] FROM_R", rtosOperand)
+		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
+
 		return disassemblyString
 	}
 
@@ -189,13 +191,17 @@ func createDisassemblyString(s Status) string {
 
 	// RETI
 	if opCode == retiOpcode {
-		disassemblyString := fmt.Sprintf("%08X  RETI | %s", absoluteAddress, stackString)
+		instructionString := fmt.Sprintf("RETI")
+		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
+
 		return disassemblyString
 	}
 
 	// HALT
 	if opCode == haltOpcode {
-		disassemblyString := fmt.Sprintf("%08X  HALT | %s", absoluteAddress, stackString)
+		instructionString := fmt.Sprintf("HALT")
+		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
+
 		return disassemblyString
 	}
 
@@ -275,13 +281,17 @@ func createDisassemblyString(s Status) string {
 
 	// SP_FETCH
 	if opCode == spFetchOpcode {
-		disassemblyString := fmt.Sprintf("%08X  [PSP: %04X] SP_FETCH | %s", absoluteAddress, pspOperand, stackString)
+
+		instructionString := fmt.Sprintf("[PSP: %04X] SP_FETCH", pspOperand)
+		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
+
 		return disassemblyString
 	}
 
 	// SP_STORE
 	if opCode == spStoreOpcode {
-		disassemblyString := fmt.Sprintf("%08X  [PTOS: %04X] SP_STORE | %s", absoluteAddress, rightOperand, stackString)
+		instructionString := fmt.Sprintf("[PTOS: %04X] SP_STORE", rightOperand)
+		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
 		return disassemblyString
 	}
 
@@ -323,11 +333,19 @@ func createDisassemblyString(s Status) string {
 		return disassemblyString
 	}
 
+	// SYSCALL
+	if opCode == sysCallOpcode {
+		instructionString := fmt.Sprintf("SYSCALL")
+		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
+
+		return disassemblyString
+	}
+
 	// a TO_R
 	if opCode == toROpcode {
-		disassemblyString := fmt.Sprintf("%08X  [PTOS: %04X] TO_R | %s", absoluteAddress, rightOperand, stackString)
+		instructionString := fmt.Sprintf("[PTOS: %04X] TO_R", rightOperand)
+		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
 		return disassemblyString
-
 	}
 
 	// a b XOR
