@@ -238,6 +238,9 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 	snapShot.inlineOperand = inlineOperand
 	snapShot.rtosOperand = c.RTOS
 	snapShot.pspOperand = c.PSP
+	snapShot.csOperand = c.cs
+	snapShot.dsOperand = c.DS
+	snapShot.esOperand = c.ES
 
 	// a b AND
 	if opCode == andOpcode {

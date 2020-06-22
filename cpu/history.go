@@ -18,6 +18,10 @@ type Status struct {
 	rtosOperand     uint16
 	pspOperand      uint16
 	ptosOperand     uint16
+	csOperand       uint16
+	dsOperand       uint16
+	esOperand       uint16
+	flagsOperand    uint8
 	// disassemblyString string
 }
 
@@ -94,6 +98,10 @@ func createDisassemblyString(s Status) string {
 	inlineOperand := s.inlineOperand
 	pspOperand := s.pspOperand
 	rtosOperand := s.rtosOperand
+	csOperand := s.csOperand
+	dsOperand := s.dsOperand
+	esOperand := s.esOperand
+	flagsOperand := s.flagsOperand
 
 	// a b AND
 	if opCode == andOpcode {
@@ -117,6 +125,13 @@ func createDisassemblyString(s Status) string {
 		return disassemblyString
 	}
 
+	// CS_FETCH
+	if opCode == csOperand {
+		instructionString := fmt.Sprintf("[%04X] CS_FETCH", csOperand)
+		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
+		return disassemblyString
+	}
+
 	// DI
 	if opCode == diOpcode {
 		instructionString := fmt.Sprintf("DI")
@@ -127,6 +142,20 @@ func createDisassemblyString(s Status) string {
 	// DOLIT l
 	if opCode == doLitOpcode {
 		instructionString := fmt.Sprintf("DO_LIT %04X", inlineOperand)
+		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
+		return disassemblyString
+	}
+
+	// DS_FETCH
+	if opCode == dsOperand {
+		instructionString := fmt.Sprintf("[%04X] DS_FETCH", dsOperand)
+		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
+		return disassemblyString
+	}
+
+	// ES_FETCH
+	if opCode == esOperand {
+		instructionString := fmt.Sprintf("[%04X] ES_FETCH", esOperand)
 		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
 		return disassemblyString
 	}
@@ -205,9 +234,32 @@ func createDisassemblyString(s Status) string {
 		return disassemblyString
 	}
 
+	// K_SP_STORE
+	if opCode == kSpStoreOpcode {
+		instructionString := fmt.Sprintf("[PTOS: %04X] K_SP_STORE", rightOperand)
+		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
+
+		return disassemblyString
+	}
+
 	// a b LESS
 	if opCode == lessOpcode || opCode == sLessOpcode {
 		instructionString := fmt.Sprintf("[%04X %04X] LESS", leftOperand, rightOperand)
+		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
+
+		return disassemblyString
+	}
+
+	// d LONG_FETCH
+	if opCode == longFetchOpcode {
+		instructionString := fmt.Sprintf("[%04X:%04X] LONG_FETCH", esOperand, rightOperand)
+		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
+		return disassemblyString
+	}
+
+	// val addr LONG_STORE
+	if opCode == longStoreOpcode {
+		instructionString := fmt.Sprintf("[%04X %04X:%04X] LONG_STORE", leftOperand, esOperand, rightOperand)
 		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
 
 		return disassemblyString
@@ -256,6 +308,21 @@ func createDisassemblyString(s Status) string {
 		instructionString := fmt.Sprintf("[%04X %04X] PLUS", leftOperand, rightOperand)
 		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
 
+		return disassemblyString
+	}
+
+	// POPF
+	if opCode == popFOpcode {
+		instructionString := fmt.Sprintf("[PTOS: %04X] POPF", rightOperand)
+		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
+		return disassemblyString
+
+	}
+
+	// PUSHF
+	if opCode == pushFOpcode {
+		instructionString := fmt.Sprintf("[Flags: %02X] PUSHF", flagsOperand)
+		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
 		return disassemblyString
 	}
 
@@ -323,6 +390,20 @@ func createDisassemblyString(s Status) string {
 		instructionString := fmt.Sprintf("SYSCALL")
 		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
 
+		return disassemblyString
+	}
+
+	// a TO_DS
+	if opCode == toDSOpcode {
+		instructionString := fmt.Sprintf("[PTOS: %04X] TO_DS", rightOperand)
+		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
+		return disassemblyString
+	}
+
+	// a TO_ES
+	if opCode == toESOpcode {
+		instructionString := fmt.Sprintf("[PTOS: %04X] TO_ES", rightOperand)
+		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
 		return disassemblyString
 	}
 
