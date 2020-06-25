@@ -8,7 +8,7 @@ import (
 // Status contains a snapshot along with disassembly
 type Status struct {
 	cpuStruct       CPU
-	absoluteAddress uint16
+	absoluteAddress uint32
 	opCode          uint16
 	pStack          [4]uint16
 	rStack          [4]uint16
@@ -22,7 +22,6 @@ type Status struct {
 	dsOperand       uint16
 	esOperand       uint16
 	flagsOperand    uint8
-	// disassemblyString string
 }
 
 const historySize = 1024 * 1024

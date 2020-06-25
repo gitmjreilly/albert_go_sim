@@ -23,7 +23,7 @@ type InterruptController struct {
 // limitAddress captures just the lower two bits
 // of an address because the interrupt controller
 // only has 3 addresses
-func limitAddress(a uint16) uint16 {
+func limitAddress(a uint32) uint32 {
 	return a & 0x0003
 }
 
@@ -61,7 +61,7 @@ func (i *InterruptController) GetOutput() bool {
 
 // Read takes address and returns a value
 // Addresses are defined above
-func (i *InterruptController) Read(address uint16) uint16 {
+func (i *InterruptController) Read(address uint32) uint16 {
 
 	address &= 0x0003
 	if address == statusAddress {
@@ -78,7 +78,7 @@ func (i *InterruptController) Read(address uint16) uint16 {
 }
 
 // Write takes an address and a value
-func (i *InterruptController) Write(address uint16, value uint16) {
+func (i *InterruptController) Write(address uint32, value uint16) {
 	address = limitAddress(address)
 	if address == clearAddress {
 		i.clear = value

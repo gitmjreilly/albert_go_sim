@@ -84,18 +84,21 @@ var History tHistory
 
 // CPU struct matches hardware
 type CPU struct {
-	PC                uint16
-	cs                uint16
-	DS                uint16
-	ES                uint16
-	PSP               uint16
-	RSP               uint16
-	PTOS              uint16
-	RTOS              uint16
-	IntCtlLow         uint8
-	ReadDataMemory    func(uint16) uint16
-	WriteDataMemory   func(uint16, uint16)
-	ReadCodeMemory    func(uint16) uint16
+	PC        uint16
+	CS        uint16
+	DS        uint16
+	ES        uint16
+	PSP       uint16
+	RSP       uint16
+	PTOS      uint16
+	RTOS      uint16
+	IntCtlLow uint8
+	// ReadDataMemory takes a 32bit address and returns 16 bit word
+	// It should be used by instructions like FETCH.
+	// Should not be used for instructions like DO_LIT
+	ReadDataMemory    func(address uint32) uint16
+	WriteDataMemory   func(address uint32, value uint16)
+	ReadCodeMemory    func(address uint32) uint16
 	history           []Status
 	InterruptCallback func() bool
 	tickNum           int
@@ -106,7 +109,7 @@ func (c *CPU) Init() {
 	c.PC = 0
 	c.PSP = 0xFF00
 	c.RSP = 0xFE00
-	c.cs = 0
+	c.CS = 0
 	c.DS = 0
 	c.ES = 0
 
@@ -130,9 +133,8 @@ func (c *CPU) SetPC(pc uint16) {
 // push is the cpu's internal push operation used by almost every instruction
 // e.g. DO_LIT and PLUS...
 func (c *CPU) push(v uint16) {
-	scaledDS := uint16(c.DS << 4)
-
-	address := c.PSP + scaledDS
+	scaledDS := uint32(c.DS << 4)
+	address := uint32(c.PSP) + scaledDS
 	c.WriteDataMemory(address, c.PTOS)
 	c.PSP++
 	c.PTOS = v
@@ -141,17 +143,19 @@ func (c *CPU) push(v uint16) {
 // pop is the cpu's internal data stack pop operation, used by many instructions
 // It returns the top of the parameter stack
 func (c *CPU) pop() uint16 {
-	scaledDS := uint16(c.DS << 4)
 	v := c.PTOS
 	c.PSP--
-	c.PTOS = c.ReadDataMemory(c.PSP + scaledDS)
+	scaledDS := uint32(c.DS << 4)
+	address := uint32(c.PSP) + scaledDS
+	c.PTOS = c.ReadDataMemory(address)
 	return v
 }
 
 // rPush is the cpu's internal push to the return stack
 func (c *CPU) rPush(v uint16) {
-	scaledDS := uint16(c.DS << 4)
-	c.WriteDataMemory(c.RSP+scaledDS, c.RTOS)
+	scaledDS := uint32(c.DS << 4)
+	address := uint32(c.RSP) + scaledDS
+	c.WriteDataMemory(address, c.RTOS)
 	c.RSP++
 	c.RTOS = v
 }
@@ -159,17 +163,19 @@ func (c *CPU) rPush(v uint16) {
 // rPop is the cpu's internal return stack pop operation
 // It returns the top of the RETURN stack
 func (c *CPU) rPop() uint16 {
-	scaledDS := uint16(c.DS << 4)
 	v := c.RTOS
 	c.RSP--
-	c.RTOS = c.ReadDataMemory(c.RSP + scaledDS)
+	scaledDS := uint32(c.DS << 4)
+	address := uint32(c.RSP) + scaledDS
+	c.RTOS = c.ReadDataMemory(address)
 	return v
 }
 
 // consumeInstructionLiteral returns literal from the instruction stream and advances PC
 func (c *CPU) consumeInstructionLiteral() uint16 {
-	scaledCS := uint16(c.cs << 4)
-	literal := c.ReadDataMemory(c.PC + scaledCS)
+	scaledCS := uint32(c.CS << 4)
+	address := uint32(c.PC) + scaledCS
+	literal := c.ReadDataMemory(address)
 	c.PC++
 	return literal
 }
@@ -183,7 +189,8 @@ func (c *CPU) Tick() int {
 		return (100)
 	}
 
-	var absoluteAddress uint16 = c.cs<<4 + c.PC
+	// var absoluteAddress uint32 = uint32(c.CS<<4 + c.PC)
+	absoluteAddress := uint32(c.CS<<4) + uint32(c.PC)
 
 	if c.InterruptCallback() && ((c.IntCtlLow & 0x01) == 1) {
 		// Notice the PC has not been incremented.
@@ -204,29 +211,31 @@ func (c *CPU) Tick() int {
 // this opCode is stored.
 // return int const Normal, Halt or Unknown
 // return 1 for HALT
-func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
+func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint32) int {
 	var snapShot Status
 
-	scaledCS := uint16(c.cs << 4)
-	scaledDS := uint16(c.DS << 4)
-	scaledES := uint16(c.ES << 4)
+	scaledCS := uint32(c.CS << 4)
+	scaledDS := uint32(c.DS << 4)
+	scaledES := uint32(c.ES << 4)
 
 	var pstackBuffer [4]uint16
-	for i := 3; i > 0; i-- {
-		pstackBuffer[i] = c.ReadDataMemory(scaledDS + c.PSP - uint16(i))
+	for i := uint32(3); i > 0; i-- {
+		address := scaledDS + uint32(c.PSP) - i
+		pstackBuffer[i] = c.ReadDataMemory(address)
 	}
 	pstackBuffer[0] = c.PTOS
 
 	var rstackBuffer [4]uint16
-	for i := 3; i > 0; i-- {
-		rstackBuffer[i] = c.ReadDataMemory(scaledDS + c.RSP - uint16(i))
+	for i := uint32(3); i > 0; i-- {
+		address := scaledDS + uint32(c.RSP) - i
+		rstackBuffer[i] = c.ReadDataMemory(address)
 	}
 	rstackBuffer[0] = c.RTOS
 
 	// Create a bunch of short cut names for uuse witth the  disasembbly
-	leftOperand := c.ReadDataMemory(scaledDS + c.PSP - 1)
+	leftOperand := c.ReadDataMemory(scaledDS + uint32(c.PSP) - 1)
 	rightOperand := c.PTOS
-	inlineOperand := c.ReadDataMemory(c.PC + scaledCS)
+	inlineOperand := c.ReadDataMemory(scaledCS + uint32(c.PC))
 
 	snapShot.absoluteAddress = absoluteAddress
 	snapShot.cpuStruct = *c
@@ -238,7 +247,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 	snapShot.inlineOperand = inlineOperand
 	snapShot.rtosOperand = c.RTOS
 	snapShot.pspOperand = c.PSP
-	snapShot.csOperand = c.cs
+	snapShot.csOperand = c.CS
 	snapShot.dsOperand = c.DS
 	snapShot.esOperand = c.ES
 
@@ -257,7 +266,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 	if opCode == branchOpcode {
 		History.logInstruction(snapShot)
 
-		destinationAddress := c.consumeInstructionLiteral() + scaledCS
+		destinationAddress := c.consumeInstructionLiteral()
 		c.PC = destinationAddress
 
 		return Normal
@@ -280,7 +289,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 	if opCode == csFetchOpcode {
 		History.logInstruction(snapShot)
 
-		c.push(c.cs)
+		c.push(c.CS)
 
 		return Normal
 	}
@@ -370,7 +379,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 	if opCode == fetchOpcode {
 		History.logInstruction(snapShot)
 
-		destinationAddress := c.pop() + scaledDS
+		destinationAddress := uint32(c.pop()) + scaledDS
 		v := c.ReadDataMemory(destinationAddress)
 		c.push(v)
 
@@ -414,7 +423,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 	if opCode == jsrintOpcode {
 		tmpRSP := c.RSP
 		c.rPush(c.DS)
-		c.rPush(c.cs)
+		c.rPush(c.CS)
 		c.rPush(c.ES)
 		c.rPush(c.PSP)
 		c.rPush(c.PTOS)
@@ -424,7 +433,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 		c.IntCtlLow = c.IntCtlLow & 0xFE
 		c.PC = 0xFD00
-		c.cs = 0x0000
+		c.CS = 0x0000
 
 		return Normal
 	}
@@ -440,7 +449,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		c.PTOS = c.rPop()
 		c.PSP = c.rPop()
 		c.ES = c.rPop()
-		c.cs = c.rPop()
+		c.CS = c.rPop()
 		c.DS = c.rPop()
 		c.RSP = tmpRSP
 
@@ -488,7 +497,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 	if opCode == longFetchOpcode {
 		History.logInstruction(snapShot)
 
-		destinationAddress := c.pop() + scaledES
+		destinationAddress := uint32(c.pop()) + scaledES
 		v := c.ReadDataMemory(destinationAddress)
 		c.push(v)
 
@@ -499,7 +508,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 	if opCode == longStoreOpcode {
 		History.logInstruction(snapShot)
 
-		destinationAddress := c.pop() + scaledES
+		destinationAddress := uint32(c.pop()) + scaledES
 		val := c.pop()
 		c.WriteDataMemory(destinationAddress, val)
 
@@ -588,9 +597,9 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 		address := c.pop()
 		c.push(address)
-		value := c.ReadDataMemory(address + scaledDS)
+		value := c.ReadDataMemory(uint32(address) + scaledDS)
 		value++
-		c.WriteDataMemory(address, value)
+		c.WriteDataMemory(uint32(address)+scaledDS, value)
 
 		return Normal
 	}
@@ -702,7 +711,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 	if opCode == storeOpcode {
 		History.logInstruction(snapShot)
 
-		destinationAddress := c.pop() + scaledDS
+		destinationAddress := uint32(c.pop()) + scaledDS
 		val := c.pop()
 		c.WriteDataMemory(destinationAddress, val)
 
@@ -714,7 +723,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 		History.logInstruction(snapShot)
 
 		val := c.pop()
-		destinationAddress := c.pop() + scaledDS
+		destinationAddress := uint32(c.pop()) + scaledDS
 		c.WriteDataMemory(destinationAddress, val)
 
 		return Normal
@@ -750,7 +759,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 		tmpRSP := c.RSP
 		c.rPush(c.DS)
-		c.rPush(c.cs)
+		c.rPush(c.CS)
 		c.rPush(c.ES)
 		c.rPush(c.PSP)
 		c.rPush(c.PTOS)
@@ -760,7 +769,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint16) int {
 
 		c.IntCtlLow = c.IntCtlLow & 0xFE
 		c.PC = 0xFD02
-		c.cs = 0x0000
+		c.CS = 0x0000
 
 		return Normal
 	}

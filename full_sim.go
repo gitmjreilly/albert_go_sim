@@ -39,7 +39,8 @@ type Memory struct {
 	memory [1024 * 1024 * 8]uint16
 }
 
-func (m *Memory) read(address uint16) uint16 {
+func (m *Memory) read(address uint32) uint16 {
+	address &= 0x000FFFFF
 	if address >= 0xF000 && address <= 0xF00F {
 		address -= 0xF000
 		return SerialPort1.Read(address)
@@ -52,7 +53,8 @@ func (m *Memory) read(address uint16) uint16 {
 	return (m.memory[address])
 }
 
-func (m *Memory) write(address uint16, value uint16) {
+func (m *Memory) write(address uint32, value uint16) {
+	address &= 0x000FFFFF
 	if address >= 0xF000 && address <= 0xF00F {
 		address -= 0xF000
 		SerialPort1.Write(address, value)
@@ -72,11 +74,11 @@ func (m *Memory) dump() {
 	s := cli.RawInput("Enter starting address (in hex) >")
 
 	n, _ := strconv.ParseUint(s, 16, 32)
-	startingAddress := uint16(n)
+	startingAddress := uint32(n)
 
-	size := uint16(16)
+	size := uint32(16)
 
-	for i := uint16(0); i < size; i++ {
+	for i := uint32(0); i < size; i++ {
 		var s string
 		workingAddress := startingAddress + i
 		value := m.read(workingAddress)
@@ -98,7 +100,7 @@ func loadPatsLoader() {
 		return
 	}
 	scanner := bufio.NewScanner(f)
-	address := uint16(0)
+	address := uint32(0)
 	for scanner.Scan() {
 		s := scanner.Text()
 		n, _ := strconv.ParseUint(s, 16, 32)
@@ -155,7 +157,7 @@ func load403File() {
 	fmt.Printf("Setting PC to [%04X]\n", startAddress)
 	mycpu.SetPC(startAddress)
 
-	memoryAddress := uint16(0x0403)
+	memoryAddress := uint32(0x0403)
 	for {
 		if objectLength == 0 {
 			break
@@ -324,15 +326,15 @@ func main() {
 	fmt.Printf("Dumping stack\n")
 
 	stackString := "PSTACK => "
-	for i := 5; i > 0; i-- {
-		stackString += fmt.Sprintf("%04X ", ram.read(mycpu.PSP-uint16(i)))
+	for i := uint32(5); i > 0; i-- {
+		stackString += fmt.Sprintf("%04X ", ram.read(uint32(mycpu.PSP)-i))
 	}
 	stackString += fmt.Sprintf("PTOS:%04X", mycpu.PTOS)
 	fmt.Println(stackString)
 
 	stackString = "RSTACK => "
-	for i := 5; i > 0; i-- {
-		stackString += fmt.Sprintf("%04X ", ram.read(mycpu.RSP-uint16(i)))
+	for i := uint32(5); i > 0; i-- {
+		stackString += fmt.Sprintf("%04X ", ram.read(uint32(mycpu.RSP)-i))
 	}
 	stackString += fmt.Sprintf("RTOS:%04X", mycpu.RTOS)
 	fmt.Println(stackString)

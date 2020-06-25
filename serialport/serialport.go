@@ -167,7 +167,7 @@ func (s *SerialPort) Tick() {
 // Write takes address and value.
 // 0 is the data port.
 // no other address is valid.
-func (s *SerialPort) Write(address uint16, value uint16) {
+func (s *SerialPort) Write(address uint32, value uint16) {
 	if address != 0 {
 		fmt.Printf("WARNING Tried to write to serial port address %04x != 0; returning\n", address)
 		return
@@ -185,7 +185,7 @@ func (s *SerialPort) Write(address uint16, value uint16) {
 // 0 is the data port
 // 1 is the status port
 // 0x0002 (bit) is set when byte had been received
-func (s *SerialPort) Read(address uint16) uint16 {
+func (s *SerialPort) Read(address uint32) uint16 {
 
 	value := uint16(0)
 	if address == 0 {
