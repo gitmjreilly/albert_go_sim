@@ -175,7 +175,7 @@ func (c *CPU) rPop() uint16 {
 func (c *CPU) consumeInstructionLiteral() uint16 {
 	scaledCS := uint32(c.CS << 4)
 	address := uint32(c.PC) + scaledCS
-	literal := c.ReadDataMemory(address)
+	literal := c.ReadCodeMemory(address)
 	c.PC++
 	return literal
 }
@@ -200,7 +200,7 @@ func (c *CPU) Tick() int {
 		return status
 	}
 
-	opCode := c.ReadDataMemory(absoluteAddress)
+	opCode := c.ReadCodeMemory(absoluteAddress)
 	c.PC++
 	status := c.doInstruction(opCode, absoluteAddress)
 	return (status)
