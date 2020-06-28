@@ -19,11 +19,11 @@ const (
 
 // SerialPort provides virtual serial port implemented with TCP
 type SerialPort struct {
+	name                      string
 	receiveBuffer             fifo
 	transmitBuffer            fifo
 	remainingTransmitTime     int
 	remaingingReceiveTime     int
-	memory                    [16]int16
 	serialConnection          net.Conn
 	inputChannel              chan uint8
 	numTicksSinceReception    int
@@ -73,12 +73,20 @@ func (f *fifo) isEmpty() bool {
 
 //
 
-// Init must be called before the serial port is used
-func (s *SerialPort) Init() {
+// Init must be called before the serial port is used.
+// It uses a raw tcpPortNum to simulate the connection.
+// Connect to the "SerialPort" with a text TCP client.
+// The name is for debugging in case the SerialPort needs
+// to report an error.
+func (s *SerialPort) Init(name string, tcpPortNum int) {
+	fmt.Printf("Initializing serial port %s with port :%d\n", name, tcpPortNum)
+	s.name = name
+
 	s.transmitBuffer.init(transmitBufferSize)
 	s.receiveBuffer.init(receiverBufferSize)
 
-	ln, err := net.Listen("tcp", ":5000")
+	portString := fmt.Sprintf(":%d", tcpPortNum)
+	ln, err := net.Listen("tcp", portString)
 	if err != nil {
 		fmt.Printf("Fatal error could not listen for serial port")
 		panic("Done.")
@@ -102,12 +110,8 @@ func (s *SerialPort) Init() {
 		b := make([]uint8, 1)
 
 		for {
-			// _ = s.serialConnection.SetReadDeadline(time.Now().Add(500 * time.Nanosecond))
-			// This Read will block until a byte arrives
-			// numRead, _ := s.serialConnection.Read(b)
 			s.serialConnection.Read(b)
 			s.inputChannel <- b[0]
-
 		}
 
 	}

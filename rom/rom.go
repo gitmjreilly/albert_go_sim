@@ -49,6 +49,6 @@ func (r *Rom) Read(address uint32) uint16 {
 
 // Write takes an address and a value
 func (r *Rom) Write(address uint32, value uint16) {
-	fmt.Printf("FATAL - tried to write to ROM\n")
+	fmt.Printf("FATAL - tried to write to ROM address %08X\n", address)
 	os.Exit(1)
 }

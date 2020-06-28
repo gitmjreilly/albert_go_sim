@@ -32,8 +32,9 @@ var numClockTicks uint64 = 0
 var numSecondsTick uint32 = 0
 var humanTime uint32 = 0
 
-// ConsoleSerialPort is the console
-var ConsoleSerialPort serialport.SerialPort
+var consoleSerialPort serialport.SerialPort
+var diskControllerPort serialport.SerialPort
+var terminalControllerPort serialport.SerialPort
 var interruptController1 interruptcontroller.InterruptController
 
 // dump is an interactive function which lets the user
@@ -61,7 +62,7 @@ var interruptController1 interruptcontroller.InterruptController
 
 // Init initializes the global runtime for the simulator
 func Init() {
-	ConsoleSerialPort.Init()
+	consoleSerialPort.Init("Console Serial Port", 5000)
 	interruptController1.Callbacks[0] = counter1.CounterIsZero
 
 	clock1.Frequency = 10000000
@@ -78,7 +79,7 @@ func Init() {
 	mem.AddDevice(memory.RomCS, rom1.Read, rom1.Write)
 	mem.AddDevice(memory.RAMCS, ram1.Read, ram1.Write)
 
-	mem.AddDevice(memory.F000, ConsoleSerialPort.Read, ConsoleSerialPort.Write)
+	mem.AddDevice(memory.F000, consoleSerialPort.Read, consoleSerialPort.Write)
 
 	go func() {
 		signalChannel := make(chan os.Signal, 2)
@@ -109,7 +110,7 @@ func runSimulator(mode int) {
 
 		clock1.Tick()
 
-		ConsoleSerialPort.Tick()
+		consoleSerialPort.Tick()
 		counter1.Tick()
 		interruptController1.Tick()
 
