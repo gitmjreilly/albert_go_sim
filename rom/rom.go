@@ -21,11 +21,15 @@ func (r *Rom) loadPatsLoader() {
 	}
 	scanner := bufio.NewScanner(f)
 	address := uint32(0)
+	// Notice we write directly to r; we do NOT
+	// use the Write method because that is for the
+	// public and writing is NOT permitted to ROM.
 	for scanner.Scan() {
 		s := scanner.Text()
 		n, _ := strconv.ParseUint(s, 16, 32)
 		w := uint16(n)
-		r.Write(address, w)
+		// r.Write(address, w)
+		r[address] = w
 		address++
 	}
 	f.Close()
@@ -45,5 +49,6 @@ func (r *Rom) Read(address uint32) uint16 {
 
 // Write takes an address and a value
 func (r *Rom) Write(address uint32, value uint16) {
-	r[address] = value
+	fmt.Printf("FATAL - tried to write to ROM\n")
+	os.Exit(1)
 }

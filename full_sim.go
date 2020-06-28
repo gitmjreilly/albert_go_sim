@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strconv"
 	"time"
 )
 
@@ -33,129 +32,36 @@ var numClockTicks uint64 = 0
 var numSecondsTick uint32 = 0
 var humanTime uint32 = 0
 
-// SerialPort1 is the console
-//
-var SerialPort1 serialport.SerialPort
+// ConsoleSerialPort is the console
+var ConsoleSerialPort serialport.SerialPort
 var interruptController1 interruptcontroller.InterruptController
-
-// Memory matches hardware
-type Memory struct {
-	memory [1024 * 1024 * 8]uint16
-}
-
-func (m *Memory) read(address uint32) uint16 {
-	address &= 0x000FFFFF
-	if address >= 0xF000 && address <= 0xF00F {
-		address -= 0xF000
-		return SerialPort1.Read(address)
-	}
-	if address >= 0xF010 && address <= 0xF01F {
-		address -= 0xF010
-		return interruptController1.Read(address)
-	}
-
-	return (m.memory[address])
-}
-
-func (m *Memory) write(address uint32, value uint16) {
-	address &= 0x000FFFFF
-	if address >= 0xF000 && address <= 0xF00F {
-		address -= 0xF000
-		SerialPort1.Write(address, value)
-
-	}
-	if address >= 0xF010 && address <= 0xF01F {
-		address -= 0xF010
-		interruptController1.Write(address, value)
-	}
-
-	m.memory[address] = value
-}
 
 // dump is an interactive function which lets the user
 // specify an area of memory to dump
-func (m *Memory) dump() {
-	s := cli.RawInput("Enter starting address (in hex) >")
+// func (m *Memory) dump() {
+// 	s := cli.RawInput("Enter starting address (in hex) >")
 
-	n, _ := strconv.ParseUint(s, 16, 32)
-	startingAddress := uint32(n)
+// 	n, _ := strconv.ParseUint(s, 16, 32)
+// 	startingAddress := uint32(n)
 
-	size := uint32(16)
+// 	size := uint32(16)
 
-	for i := uint32(0); i < size; i++ {
-		var s string
-		workingAddress := startingAddress + i
-		value := m.read(workingAddress)
-		if value >= 32 && value <= 126 {
-			s = fmt.Sprintf("%s", string(value))
-		} else {
-			s = "NP"
-		}
-		fmt.Printf("  %04X: %04X %3s\n", workingAddress, value, s)
-	}
-}
-
-// load403File - uses Original Pat loader format from 2006!
-// It is interactive and prompts for a file name.
-// TODO create a return value to show success or failure
-// func load403File() {
-
-// 	// read4 returns uint16 by reading 4 HEX digits from f
-// 	read4 := func(f *os.File) uint16 {
-// 		b := make([]byte, 4)
-// 		f.Read(b)
-// 		s := string(b)
-// 		n, _ := strconv.ParseUint(s, 16, 32)
-// 		w := uint16(n)
-// 		return (w)
-
-// 	}
-
-// 	filename := cli.RawInput("Enter 403 file name >")
-// 	fileInfo, err := os.Stat(filename)
-// 	if err != nil {
-// 		fmt.Printf("Could not stat file [%s].  Returning\n", filename)
-// 		return
-// 	}
-// 	actualFileSize := fileInfo.Size()
-// 	fmt.Printf("File Size is %d\n", actualFileSize)
-// 	if actualFileSize < 12 {
-// 		fmt.Printf("File is too small to be a valid 403 file; returning...\n")
-// 		return
-// 	}
-
-// 	f, err := os.Open(filename)
-// 	if err != nil {
-// 		fmt.Printf("Could not open %s\n", filename)
-// 		return
-// 	}
-
-// 	objectLength := read4(f)
-// 	requiredFileSize := 4 + 4 + 4*objectLength
-// 	if actualFileSize != int64(requiredFileSize) {
-// 		fmt.Printf("file size mismatch; returning...\n")
-// 	}
-// 	startAddress := read4(f)
-
-// 	fmt.Printf("Setting PC to [%04X]\n", startAddress)
-// 	mycpu.SetPC(startAddress)
-
-// 	memoryAddress := uint32(0x0403)
-// 	for {
-// 		if objectLength == 0 {
-// 			break
+// 	for i := uint32(0); i < size; i++ {
+// 		var s string
+// 		workingAddress := startingAddress + i
+// 		value := m.read(workingAddress)
+// 		if value >= 32 && value <= 126 {
+// 			s = fmt.Sprintf("%s", string(value))
+// 		} else {
+// 			s = "NP"
 // 		}
-// 		dataWord := read4(f)
-// 		ram.Write(memoryAddress, dataWord)
-// 		memoryAddress++
-// 		objectLength--
+// 		fmt.Printf("  %04X: %04X %3s\n", workingAddress, value, s)
 // 	}
-
 // }
 
 // Init initializes the global runtime for the simulator
 func Init() {
-	SerialPort1.Init()
+	ConsoleSerialPort.Init()
 	interruptController1.Callbacks[0] = counter1.CounterIsZero
 
 	clock1.Frequency = 10000000
@@ -172,7 +78,7 @@ func Init() {
 	mem.AddDevice(memory.RomCS, rom1.Read, rom1.Write)
 	mem.AddDevice(memory.RAMCS, ram1.Read, ram1.Write)
 
-	mem.AddDevice(memory.F000, SerialPort1.Read, SerialPort1.Write)
+	mem.AddDevice(memory.F000, ConsoleSerialPort.Read, ConsoleSerialPort.Write)
 
 	go func() {
 		signalChannel := make(chan os.Signal, 2)
@@ -203,17 +109,7 @@ func runSimulator(mode int) {
 
 		clock1.Tick()
 
-		// numClockTicks++
-		// numSecondsTick++
-
-		// if numSecondsTick == numTicksPerSecond {
-		// 	numSecondsTick = 0
-		// 	humanTime++
-		// 	fmt.Printf("(simulated) elapsed time (secs)%5d\n", humanTime)
-
-		// }
-
-		SerialPort1.Tick()
+		ConsoleSerialPort.Tick()
 		counter1.Tick()
 		interruptController1.Tick()
 

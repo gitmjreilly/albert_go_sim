@@ -5,10 +5,10 @@ import (
 	"os"
 )
 
-// Constants associated memory mapped devices
-// Think of these as chip select lines
+// Constants associated with memory mapped devices.
+// Think of these as chip select lines.
 // For the devices mapped beteen F000 and F0DF
-// We assume the constant can be derived from the address.
+// we assume the constant can be derived from the address.
 // e.g F023 has const 2 == (F023 - F000) / 0x10
 // RAM and ROM are special cases because of the way the hardware
 // is actually constructed.  See _helper for all of the special case handling
@@ -61,6 +61,9 @@ type TMemory struct {
 // _helper takes the address of a memory mapped device
 // and returns the index into the TMemory structure
 // of the mappedDevice.
+// The idea is, for any given mapped, memory-like thing
+// we'll call the correct read and write functions.
+//
 // It also returns the address for use within the device
 // e.g. if address is 0xF012
 // return 1 for the index and 2 for the address
