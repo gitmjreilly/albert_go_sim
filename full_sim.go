@@ -13,12 +13,15 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"time"
 )
 
 const (
 	numTicksPerSecond = 10000000
 )
+
+var wg sync.WaitGroup
 
 var mycpu cpu.CPU
 var mem memory.TMemory
@@ -62,25 +65,59 @@ var interruptController1 interruptcontroller.InterruptController
 
 // Init initializes the global runtime for the simulator
 func Init() {
+	var enableControllers string
+
+	// First we initialize all of the devices e.g. serial ports and cpu
+	// Then we add them to the memory map.
+	// Then we connect to the interrupt controller (via callbacks) if necessary
+	// We also have to provide memory callbacks to the cpu
+	counter1.Init()
+
 	consoleSerialPort.Init("Console Serial Port", 5000)
+	for {
+		enableControllers = cli.RawInput("Do you want to init disk and term controllers (y/n) >")
+		if (enableControllers == "y") || (enableControllers == "n") {
+			break
+		}
+	}
+
+	if enableControllers == "y" {
+		diskControllerPort.Init("Disk Controller", 5600)
+		terminalControllerPort.Init("Terminal Controller", 6000)
+	}
+
+	interruptController1.Init()
+
+	mycpu.Init()
+	// ram does not need to be initialized
+	rom1.Init()
+
+	// Add all of the devices to the memory map
+	// This corresponds to the chip select glue logic in the hardware
+	mem.AddDevice(memory.RomCS, rom1.Read, rom1.Write)
+	mem.AddDevice(memory.RAMCS, ram1.Read, ram1.Write)
+	mem.AddDevice(memory.F000, consoleSerialPort.Read, consoleSerialPort.Write)
+	mem.AddDevice(memory.F010, interruptController1.Read, interruptController1.Write)
+	if enableControllers == "y" {
+		mem.AddDevice(memory.F030, terminalControllerPort.Read, terminalControllerPort.Write)
+		mem.AddDevice(memory.F090, diskControllerPort.Read, diskControllerPort.Write)
+	}
+
+	// Connect sources to the interrupt controller.
+	// The assignments are boolean callbacks
 	interruptController1.Callbacks[0] = counter1.CounterIsZero
 
 	clock1.Frequency = 10000000
 	clock1.DoPrint = true
 
-	mycpu.Init()
-	rom1.Init()
-
-	mycpu.ReadCodeMemory = mem.Read
+	mycpu.ReadCodeMemory = mem.ReadCodeMemory
 	mycpu.ReadDataMemory = mem.Read
 	mycpu.WriteDataMemory = mem.Write
 	mycpu.InterruptCallback = interruptController1.GetOutput
 
-	mem.AddDevice(memory.RomCS, rom1.Read, rom1.Write)
-	mem.AddDevice(memory.RAMCS, ram1.Read, ram1.Write)
-
-	mem.AddDevice(memory.F000, consoleSerialPort.Read, consoleSerialPort.Write)
-
+	// There's a little bit of magic here.  We've created a goroutine
+	// so that we can sets a global var
+	// to indicate the user has pressed CTL-C
 	go func() {
 		signalChannel := make(chan os.Signal, 2)
 		// When SIGINT occurs send signal to signalChannel
@@ -99,6 +136,7 @@ func Init() {
 // mode == 0 for continuous running
 // mode == 1 for single stepping
 func runSimulator(mode int) {
+	defer wg.Done()
 
 	fmt.Printf("Running simulator\n")
 	for {
@@ -179,7 +217,11 @@ func main() {
 		}
 
 		if selection == "r" {
-			runSimulator(0)
+			wg.Add(1)
+			go runSimulator(0)
+			fmt.Printf("Started waiting in full sim\n")
+			wg.Wait()
+			fmt.Printf("Finished waiting in full sim\n")
 			continue
 		}
 

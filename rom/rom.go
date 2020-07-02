@@ -4,10 +4,14 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"runtime"
 	"strconv"
 )
 
-type Rom [0x400]uint16
+const romSize = 0x400
+
+// Rom is the type representing lower read only memory
+type Rom [romSize]uint16
 
 // loadPatsLoader takes the original hex "binary" and places it in ram
 func (r *Rom) loadPatsLoader() {
@@ -50,5 +54,7 @@ func (r *Rom) Read(address uint32) uint16 {
 // Write takes an address and a value
 func (r *Rom) Write(address uint32, value uint16) {
 	fmt.Printf("FATAL - tried to write to ROM address %08X\n", address)
-	os.Exit(1)
+	fmt.Printf("  Calling Goexit\n")
+	runtime.Goexit()
+
 }

@@ -3,6 +3,7 @@ package memory
 import (
 	"fmt"
 	"os"
+	"runtime"
 )
 
 // Constants associated with memory mapped devices.
@@ -104,7 +105,25 @@ func (m *TMemory) Read(address uint32) uint16 {
 	if !m.mappedDevice[index].isMapped {
 		fmt.Printf("FATAL Error in memory read.  Attempt to read non mapped memory.\n")
 		fmt.Printf("address is [%08X]\n", address)
-		os.Exit(1)
+		runtime.Goexit()
+	}
+
+	value := m.mappedDevice[index].readData(subAddress)
+
+	return value
+}
+
+// ReadCodeMemory takes an address and returns a value
+// from the memory map.  Could be ram/rom or
+// memory mapped device like a Serial Port
+func (m *TMemory) ReadCodeMemory(address uint32) uint16 {
+
+	index, subAddress := _helper(address)
+
+	if !m.mappedDevice[index].isMapped {
+		fmt.Printf("FATAL Error in memory CodeRead.  Attempt to read non mapped memory.\n")
+		fmt.Printf("address is [%08X]\n", address)
+		runtime.Goexit()
 	}
 
 	value := m.mappedDevice[index].readData(subAddress)
@@ -122,7 +141,7 @@ func (m *TMemory) Write(address uint32, value uint16) {
 	if !m.mappedDevice[index].isMapped {
 		fmt.Printf("FATAL Error in memory write.  Attempt to write non mapped memory.\n")
 		fmt.Printf("address is [%08X]\n", address)
-		os.Exit(1)
+		runtime.Goexit()
 	}
 
 	m.mappedDevice[index].writeData(subAddress, value)

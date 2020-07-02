@@ -3,6 +3,7 @@ package counter
 import (
 	"albert_go_sim/intmaxmin"
 	"fmt"
+	"runtime"
 )
 
 const (
@@ -13,6 +14,11 @@ const (
 type Counter struct {
 	value   uint16
 	tickNum int
+}
+
+// Init the counter
+func (c *Counter) Init() {
+	fmt.Printf("Initializing Counter\n")
 }
 
 // Tick should be called on every tick off the virtual clock
@@ -39,4 +45,5 @@ func (c *Counter) Read(address uint16) uint16 {
 // Write for the counter doesn't make sense; flag as simulation WARNING
 func (c *Counter) Write(address uint16, value uint16) {
 	fmt.Printf("WARNING tried to write to read only counter\n")
+	runtime.Goexit()
 }

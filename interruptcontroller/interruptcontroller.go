@@ -1,5 +1,7 @@
 package interruptcontroller
 
+import "fmt"
+
 const (
 	statusAddress = 0
 	maskAddress   = 1
@@ -25,6 +27,11 @@ type InterruptController struct {
 // only has 3 addresses
 func limitAddress(a uint32) uint32 {
 	return a & 0x0003
+}
+
+// Init the interrupt controller
+func (i *InterruptController) Init() {
+	fmt.Printf("Initializing interrupt controller\n")
 }
 
 // Tick should be called on every tick off the virtual clock
