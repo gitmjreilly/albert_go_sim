@@ -4,6 +4,7 @@ import (
 	"albert_go_sim/intmaxmin"
 	"fmt"
 	"net"
+	"runtime"
 	"time"
 )
 
@@ -91,8 +92,7 @@ func (s *SerialPort) Init(name string, tcpPortNum int) {
 		fmt.Printf("Fatal error could not listen for serial port")
 		panic("Done.")
 	}
-	fmt.Printf("   Listen succeeded\n")
-	fmt.Printf("   Connect your virtual terminal to TCP 5000\n")
+	fmt.Printf("   Listen succeeded; connect now.\n")
 	connection, err := ln.Accept()
 	if err != nil {
 		fmt.Printf("Fatal error could not listen for serial port")
@@ -193,7 +193,7 @@ func (s *SerialPort) Read(address uint32) uint16 {
 
 	value := uint16(0)
 	if address == 0 {
-		// Users wants to read received serial data.
+		// User wants to read received serial data.
 		// Do some sanity checks along the way
 		if s.receiveBuffer.isEmpty() {
 			fmt.Printf("WARNING trying to read from empty serial receive buffer; returning\n")
@@ -227,5 +227,76 @@ func (s *SerialPort) Read(address uint32) uint16 {
 		return value
 	}
 
+	if address == 3 {
+		if s.transmitBuffer.numElements < transmitBufferSize/2 {
+			value = 0x0001
+		}
+		return value
+	}
+
+	if address == 4 {
+		if s.transmitBuffer.numElements == transmitBufferSize {
+			value = 0x0001
+		}
+		return value
+	}
+
+	if address == 5 {
+		if s.transmitBuffer.isFull() {
+			value = 0x0001
+		}
+		return value
+	}
+
+	if address == 6 { // OK
+		if s.receiveBuffer.isEmpty() {
+			value = 0x0001
+		}
+		return value
+
+	}
+
+	if address == 7 {
+		if s.receiveBuffer.numElements >= receiverBufferSize/2 {
+			value = 0x0001
+		}
+		return value
+	}
+
+	if address == 8 {
+		if s.receiveBuffer.numElements >= receiverBufferSize/4 {
+			value = 0x0001
+		}
+		return value
+	}
+
+	if address == 9 {
+		if s.receiveBuffer.numElements == receiverBufferSize {
+			value = 0x0001
+		}
+		return value
+	}
+
+	if address == 0xE {
+		return uint16(s.receiveBuffer.numElements)
+	}
+
+	if address == 0xF {
+		return uint16(s.transmitBuffer.numElements)
+	}
+
+	fmt.Printf("FATAL - tried to read from unmapped serial port address %02X in [%s]\n", address, s.name)
+	runtime.Goexit()
+
 	return 0
+}
+
+// RXIsHalfFull is a callback meant for use by an interrupt controller
+func (s *SerialPort) RXIsHalfFull() bool {
+	return s.receiveBuffer.numElements >= receiverBufferSize/2
+}
+
+// RXIsQuarterFull is a callback meant for use by an interrupt controller
+func (s *SerialPort) RXIsQuarterFull() bool {
+	return s.receiveBuffer.numElements >= receiverBufferSize/4
 }

@@ -1,9 +1,11 @@
 package memory
 
 import (
+	"albert_go_sim/cli"
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 )
 
 // Constants associated with memory mapped devices.
@@ -99,6 +101,10 @@ func _helper(address uint32) (int, uint32) {
 // from the memory map.  Could be ram/rom or
 // memory mapped device like a Serial Port
 func (m *TMemory) Read(address uint32) uint16 {
+	if address > (MEMSIZE - 1) {
+		fmt.Printf("FATAL Error tried to read address %08X past memsize %08x\n", address, MEMSIZE)
+		runtime.Goexit()
+	}
 
 	index, subAddress := _helper(address)
 
@@ -117,6 +123,10 @@ func (m *TMemory) Read(address uint32) uint16 {
 // from the memory map.  Could be ram/rom or
 // memory mapped device like a Serial Port
 func (m *TMemory) ReadCodeMemory(address uint32) uint16 {
+	if address > (MEMSIZE - 1) {
+		fmt.Printf("FATAL Error tried to read CODE address %08X past memsize %08x\n", address, MEMSIZE)
+		runtime.Goexit()
+	}
 
 	index, subAddress := _helper(address)
 
@@ -135,6 +145,10 @@ func (m *TMemory) ReadCodeMemory(address uint32) uint16 {
 // the memory map.  Could be ram or
 // memory mapped device like a Serial Port
 func (m *TMemory) Write(address uint32, value uint16) {
+	if address > (MEMSIZE - 1) {
+		fmt.Printf("FATAL Error tried to Write address %08X past memsize %08x\n", address, MEMSIZE)
+		runtime.Goexit()
+	}
 
 	index, subAddress := _helper(address)
 
@@ -248,3 +262,26 @@ func (m *TMemory) AddDevice(addressRange int,
 // mycpu.ReadDataMemory = ram.read
 // mycpu.WriteDataMemory = ram.write
 // mycpu.InterruptCallback = interruptController1.GetOutput
+
+// Dump is an interactive function which lets the user
+// specify an area of memory to dump
+func (m *TMemory) Dump() {
+	s := cli.RawInput("Enter starting address (in hex) >")
+
+	n, _ := strconv.ParseUint(s, 16, 32)
+	startingAddress := uint32(n)
+
+	size := uint32(16)
+
+	for i := uint32(0); i < size; i++ {
+		var s string
+		workingAddress := startingAddress + i
+		value := m.Read(workingAddress)
+		if value >= 32 && value <= 126 {
+			s = fmt.Sprintf("%s", string(value))
+		} else {
+			s = "NP"
+		}
+		fmt.Printf("  %04X: %04X %3s\n", workingAddress, value, s)
+	}
+}

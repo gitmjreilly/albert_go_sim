@@ -1,16 +1,20 @@
 package cpu
 
 import (
+	"albert_go_sim/cli"
 	"albert_go_sim/intmaxmin"
 	"fmt"
+	"runtime"
+	"strconv"
 )
 
 // These are constants indicating return status
 // from CPU.doInstruction
 const (
-	Normal  = iota
-	Halt    = iota
-	Unknown = iota
+	Normal     = iota
+	Halt       = iota
+	BreakPoint = iota
+	Unknown    = iota
 )
 
 // Opcode values
@@ -71,8 +75,8 @@ const (
 )
 
 const (
-	true  = 0xFFFF
-	false = 0x0000
+	cpuTrue  = 0xFFFF
+	cpuFalse = 0x0000
 )
 
 const (
@@ -96,12 +100,14 @@ type CPU struct {
 	// ReadDataMemory takes a 32bit address and returns 16 bit word
 	// It should be used by instructions like FETCH.
 	// Should not be used for instructions like DO_LIT
-	ReadDataMemory    func(address uint32) uint16
-	WriteDataMemory   func(address uint32, value uint16)
-	ReadCodeMemory    func(address uint32) uint16
-	history           []Status
-	InterruptCallback func() bool
-	tickNum           int
+	ReadDataMemory            func(address uint32) uint16
+	WriteDataMemory           func(address uint32, value uint16)
+	ReadCodeMemory            func(address uint32) uint16
+	history                   []Status
+	InterruptCallback         func() bool
+	tickNum                   int
+	breakPoints               map[uint32]bool
+	previousBreakPointAddress uint32
 }
 
 // Init sets up the cpu before the first instruction is run
@@ -113,6 +119,8 @@ func (c *CPU) Init() {
 	c.DS = 0
 	c.ES = 0
 
+	c.breakPoints = make(map[uint32]bool)
+
 }
 
 // ShowStatus prints the internal state of the CPU
@@ -121,8 +129,39 @@ func (c *CPU) ShowStatus() {
 	fmt.Printf("PC    : %04X\n", c.PC)
 	fmt.Printf("PTOS  : %04X  RTOS : %04X\n", c.PTOS, c.RTOS)
 	fmt.Printf("PSP   : %04X  RSP  : %04X\n", c.PSP, c.RSP)
+	fmt.Printf("CS    : %04x  DS   : %04X   ES :  %04X\n", c.CS, c.DS, c.ES)
+	fmt.Printf("IntCtl : %04x\n", c.IntCtlLow)
 	fmt.Printf("Interrupt state %v\n", c.InterruptCallback())
 	fmt.Printf("\n")
+}
+
+// SetBreakPoint interactively prompts for a break point address
+func (c *CPU) SetBreakPoint() {
+	s := cli.RawInput("Enter PC (in hex) for breakpoint>")
+	n, err := strconv.ParseUint(s, 16, 32)
+	if err != nil {
+		fmt.Printf("Invalid hex string.  Breakpoint was not set.\n")
+		return
+	}
+	c.breakPoints[uint32(n)] = true
+}
+
+// ClearBreakPoint interactively prompts for a break point address
+func (c *CPU) ClearBreakPoint() {
+	s := cli.RawInput("Enter PC (in hex) for breakpoint to clear>")
+	n, err := strconv.ParseUint(s, 16, 32)
+	if err != nil {
+		fmt.Printf("Invalid hex string.  Breakpoint was not set.\n")
+		return
+	}
+	delete(c.breakPoints, uint32(n))
+}
+
+// ShowBreakPoints prints all user defined break points
+func (c *CPU) ShowBreakPoints() {
+	for breakPoint := range c.breakPoints {
+		fmt.Printf("%08X\n", breakPoint)
+	}
 }
 
 // SetPC allows direct setting of the the cpu's PC
@@ -133,7 +172,7 @@ func (c *CPU) SetPC(pc uint16) {
 // push is the cpu's internal push operation used by almost every instruction
 // e.g. DO_LIT and PLUS...
 func (c *CPU) push(v uint16) {
-	scaledDS := uint32(c.DS << 4)
+	scaledDS := uint32(c.DS) << 4
 	address := uint32(c.PSP) + scaledDS
 	c.WriteDataMemory(address, c.PTOS)
 	c.PSP++
@@ -145,7 +184,7 @@ func (c *CPU) push(v uint16) {
 func (c *CPU) pop() uint16 {
 	v := c.PTOS
 	c.PSP--
-	scaledDS := uint32(c.DS << 4)
+	scaledDS := uint32(c.DS) << 4
 	address := uint32(c.PSP) + scaledDS
 	c.PTOS = c.ReadDataMemory(address)
 	return v
@@ -153,7 +192,7 @@ func (c *CPU) pop() uint16 {
 
 // rPush is the cpu's internal push to the return stack
 func (c *CPU) rPush(v uint16) {
-	scaledDS := uint32(c.DS << 4)
+	scaledDS := uint32(c.DS) << 4
 	address := uint32(c.RSP) + scaledDS
 	c.WriteDataMemory(address, c.RTOS)
 	c.RSP++
@@ -165,7 +204,7 @@ func (c *CPU) rPush(v uint16) {
 func (c *CPU) rPop() uint16 {
 	v := c.RTOS
 	c.RSP--
-	scaledDS := uint32(c.DS << 4)
+	scaledDS := uint32(c.DS) << 4
 	address := uint32(c.RSP) + scaledDS
 	c.RTOS = c.ReadDataMemory(address)
 	return v
@@ -173,7 +212,7 @@ func (c *CPU) rPop() uint16 {
 
 // consumeInstructionLiteral returns literal from the instruction stream and advances PC
 func (c *CPU) consumeInstructionLiteral() uint16 {
-	scaledCS := uint32(c.CS << 4)
+	scaledCS := uint32(c.CS) << 4
 	address := uint32(c.PC) + scaledCS
 	literal := c.ReadCodeMemory(address)
 	c.PC++
@@ -200,6 +239,16 @@ func (c *CPU) Tick() int {
 		return status
 	}
 
+	// Check for a breakpoint.  The tricky part is we have to remember the
+	// previous address where a break point occurred.  This is because
+	// we'll keep breaking at the same breakpoint after we reach it for the
+	// first time.
+	if c.breakPoints[absoluteAddress] && absoluteAddress != c.previousBreakPointAddress {
+		fmt.Printf("Break point encountered at %08X\n", absoluteAddress)
+		c.previousBreakPointAddress = absoluteAddress
+		return (BreakPoint)
+	}
+
 	opCode := c.ReadCodeMemory(absoluteAddress)
 	c.PC++
 	status := c.doInstruction(opCode, absoluteAddress)
@@ -214,9 +263,9 @@ func (c *CPU) Tick() int {
 func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint32) int {
 	var snapShot Status
 
-	scaledCS := uint32(c.CS << 4)
-	scaledDS := uint32(c.DS << 4)
-	scaledES := uint32(c.ES << 4)
+	scaledCS := uint32(c.CS) << 4
+	scaledDS := uint32(c.DS) << 4
+	scaledES := uint32(c.ES) << 4
 
 	var pstackBuffer [4]uint16
 	for i := uint32(3); i > 0; i-- {
@@ -278,7 +327,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint32) int {
 
 		flag := c.pop()
 		destinationAddress := c.consumeInstructionLiteral()
-		if flag == false {
+		if flag == cpuFalse {
 			c.PC = destinationAddress
 		}
 
@@ -349,9 +398,9 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint32) int {
 		b := c.pop()
 		a := c.pop()
 		if a == b {
-			c.push(true)
+			c.push(cpuTrue)
 		} else {
-			c.push(false)
+			c.push(cpuFalse)
 		}
 
 		return Normal
@@ -422,6 +471,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint32) int {
 	// rPush sequence should match rPop sequene in RETI
 	if opCode == jsrintOpcode {
 		tmpRSP := c.RSP
+		tmpRTOS := c.RTOS
 		c.rPush(c.DS)
 		c.rPush(c.CS)
 		c.rPush(c.ES)
@@ -430,6 +480,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint32) int {
 		c.rPush(c.PC)
 		c.rPush(uint16(c.IntCtlLow))
 		c.rPush(tmpRSP)
+		c.rPush(tmpRTOS)
 
 		c.IntCtlLow = c.IntCtlLow & 0xFE
 		c.PC = 0xFD00
@@ -440,9 +491,11 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint32) int {
 
 	// RETI
 	// rPop sequence should match rPush sequene in JSRINT
+	// Sequence from TOP down is RTOS, RSP, Flags, PC, PTOS, PSP, ES, CS, DS
 	if opCode == retiOpcode {
 		History.logInstruction(snapShot)
 
+		tmpRTOS := c.rPop()
 		tmpRSP := c.rPop()
 		c.IntCtlLow = uint8(c.rPop())
 		c.PC = c.rPop()
@@ -452,6 +505,10 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint32) int {
 		c.CS = c.rPop()
 		c.DS = c.rPop()
 		c.RSP = tmpRSP
+		c.RTOS = tmpRTOS
+
+		fmt.Printf("DEBUG in RETI 9 values were popped:\n")
+		c.ShowStatus()
 
 		return Normal
 	}
@@ -475,9 +532,9 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint32) int {
 		b := int16(c.pop())
 		a := int16(c.pop())
 		if a < b {
-			c.push(true)
+			c.push(cpuTrue)
 		} else {
-			c.push(false)
+			c.push(cpuFalse)
 		}
 
 		return Normal
@@ -508,7 +565,8 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint32) int {
 	if opCode == longStoreOpcode {
 		History.logInstruction(snapShot)
 
-		destinationAddress := uint32(c.pop()) + scaledES
+		unscaledAddress := uint32(c.pop())
+		destinationAddress := unscaledAddress + scaledES
 		val := c.pop()
 		c.WriteDataMemory(destinationAddress, val)
 
@@ -535,9 +593,9 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint32) int {
 
 		a := int16(c.pop())
 		if a < 0 {
-			c.push(true)
+			c.push(cpuTrue)
 		} else {
-			c.push(false)
+			c.push(cpuFalse)
 		}
 
 		return Normal
@@ -758,6 +816,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint32) int {
 		History.logInstruction(snapShot)
 
 		tmpRSP := c.RSP
+		tmpRTOS := c.RTOS
 		c.rPush(c.DS)
 		c.rPush(c.CS)
 		c.rPush(c.ES)
@@ -766,6 +825,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint32) int {
 		c.rPush(c.PC)
 		c.rPush(uint16(c.IntCtlLow))
 		c.rPush(tmpRSP)
+		c.rPush(tmpRTOS)
 
 		c.IntCtlLow = c.IntCtlLow & 0xFE
 		c.PC = 0xFD02
@@ -814,5 +874,6 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint32) int {
 	}
 
 	fmt.Printf("Unknown opcode [%04X] address [%08X]\n", opCode, absoluteAddress)
-	return Unknown
+	runtime.Goexit()
+	return 0 // Will never be reached
 }

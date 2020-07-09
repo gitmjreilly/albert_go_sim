@@ -40,29 +40,6 @@ var diskControllerPort serialport.SerialPort
 var terminalControllerPort serialport.SerialPort
 var interruptController1 interruptcontroller.InterruptController
 
-// dump is an interactive function which lets the user
-// specify an area of memory to dump
-// func (m *Memory) dump() {
-// 	s := cli.RawInput("Enter starting address (in hex) >")
-
-// 	n, _ := strconv.ParseUint(s, 16, 32)
-// 	startingAddress := uint32(n)
-
-// 	size := uint32(16)
-
-// 	for i := uint32(0); i < size; i++ {
-// 		var s string
-// 		workingAddress := startingAddress + i
-// 		value := m.read(workingAddress)
-// 		if value >= 32 && value <= 126 {
-// 			s = fmt.Sprintf("%s", string(value))
-// 		} else {
-// 			s = "NP"
-// 		}
-// 		fmt.Printf("  %04X: %04X %3s\n", workingAddress, value, s)
-// 	}
-// }
-
 // Init initializes the global runtime for the simulator
 func Init() {
 	var enableControllers string
@@ -105,7 +82,11 @@ func Init() {
 
 	// Connect sources to the interrupt controller.
 	// The assignments are boolean callbacks
-	interruptController1.Callbacks[0] = counter1.CounterIsZero
+	interruptController1.Callbacks[1] = counter1.CounterIsZero
+
+	interruptController1.Callbacks[5] = terminalControllerPort.RXIsQuarterFull
+
+	interruptController1.Callbacks[4] = diskControllerPort.RXIsHalfFull
 
 	clock1.Frequency = 10000000
 	clock1.DoPrint = true
@@ -149,6 +130,8 @@ func runSimulator(mode int) {
 		clock1.Tick()
 
 		consoleSerialPort.Tick()
+		diskControllerPort.Tick()
+		terminalControllerPort.Tick()
 		counter1.Tick()
 		interruptController1.Tick()
 
@@ -178,19 +161,44 @@ func runSimulator(mode int) {
 			fmt.Printf("Number of ticks since simulation started TOBEFIXED : %d\n", numClockTicks)
 			break
 		}
+		if status == cpu.BreakPoint {
+			fmt.Printf("Encountered breakpoint\n")
+			break
+		}
 
 	}
+
+}
+
+func showStacks() {
+	stackString := "PSTACK => "
+	for i := uint32(10); i > 0; i-- {
+		stackString += fmt.Sprintf("%04X ", mem.Read(uint32(mycpu.PSP)-i))
+	}
+	stackString += fmt.Sprintf("PTOS:%04X", mycpu.PTOS)
+	fmt.Println(stackString)
+
+	stackString = "RSTACK => "
+	for i := uint32(10); i > 0; i-- {
+		stackString += fmt.Sprintf("%04X ", mem.Read(uint32(mycpu.RSP)-i))
+	}
+	stackString += fmt.Sprintf("RTOS:%04X", mycpu.RTOS)
+	fmt.Println(stackString)
 
 }
 
 func helpMessage() {
 	fmt.Printf("HELP\n")
 	fmt.Printf("   r - run the simulator\n")
-	fmt.Printf("   s - STEP simulator\n")
+	fmt.Printf("   s - step simulator\n")
+	fmt.Printf("   S - Show stacks\n")
+	fmt.Printf("   b - Set break point\n")
+	fmt.Printf("   B - Show Break points\n")
 	fmt.Printf("   l - load a 403 file\n")
 	fmt.Printf("   m - dump memory\n")
-	fmt.Printf("   S - show CPU status\n")
-	fmt.Printf("   H - display history\n")
+	fmt.Printf("   d - display CPU status\n")
+	fmt.Printf("   c - clear break point\n")
+	fmt.Printf("   H - display History\n")
 	fmt.Printf("   q - quit the simulator\n")
 }
 
@@ -211,7 +219,21 @@ func main() {
 			continue
 		}
 
-		if selection == "S" {
+		if selection == "b" {
+			mycpu.SetBreakPoint()
+			continue
+		}
+
+		if selection == "c" {
+			mycpu.ClearBreakPoint()
+			continue
+		}
+
+		if selection == "B" {
+			mycpu.ShowBreakPoints()
+		}
+
+		if selection == "d" {
 			mycpu.ShowStatus()
 			continue
 		}
@@ -231,14 +253,20 @@ func main() {
 		// }
 
 		if selection == "s" {
-			runSimulator(1)
+			wg.Add(1)
+			go runSimulator(1)
+			wg.Wait()
 			mycpu.ShowStatus()
 			continue
 		}
 
 		if selection == "m" {
-			// ram.dump()
+			mem.Dump()
 			continue
+		}
+
+		if selection == "S" {
+			showStacks()
 		}
 
 		if selection == "q" {
@@ -251,20 +279,7 @@ func main() {
 	fmt.Printf("PSP is %04X\n", mycpu.PSP)
 	fmt.Printf("RSP is %04X\n", mycpu.RSP)
 	fmt.Printf("Dumping stack\n")
-
-	stackString := "PSTACK => "
-	for i := uint32(5); i > 0; i-- {
-		stackString += fmt.Sprintf("%04X ", mem.Read(uint32(mycpu.PSP)-i))
-	}
-	stackString += fmt.Sprintf("PTOS:%04X", mycpu.PTOS)
-	fmt.Println(stackString)
-
-	stackString = "RSTACK => "
-	for i := uint32(5); i > 0; i-- {
-		stackString += fmt.Sprintf("%04X ", mem.Read(uint32(mycpu.RSP)-i))
-	}
-	stackString += fmt.Sprintf("RTOS:%04X", mycpu.RTOS)
-	fmt.Println(stackString)
+	showStacks()
 
 	fmt.Printf("Simulation is finished\n")
 
