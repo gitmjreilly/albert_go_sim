@@ -72,27 +72,29 @@ type TMemory struct {
 // return 1 for the index and 2 for the address
 //
 // RAM and ROM are special cases.  Their addresses are accepted as-is.
-func _helper(address uint32) (int, uint32) {
+func _helper(absoluteAddress uint32) (int, uint32) {
+	addressInBank := uint16(absoluteAddress & 0xFFFF)
+
 	// The order here is super important
 
 	// Check for the most common case, RAM
 	// RAM lives above ROM and excludes the memory mapped devices in F000 -> F0DF
-	if address >= 0x0400 && (address < 0xF000 || address > 0xF0DF) {
-		return RAMCS, address
+	if addressInBank >= 0x0400 && (addressInBank < 0xF000 || addressInBank > 0xF0DF) {
+		return RAMCS, absoluteAddress
 	}
 
 	// Check for ROM
-	if address < 0x0400 {
-		return RomCS, address
+	if addressInBank < 0x0400 {
+		return RomCS, uint32(addressInBank)
 	}
 
 	// If we got this far, we must be in the memory mapped device range -
-	// address(es) are 0xF000 <= x <= 0xF0DF
-	address -= 0xF000
-	// address is now 0x0000 <= x <= 0x00FF
+	// address(es) are 0xF000 <= x <= 0xF0DF IN EVERY 64K bank
+	addressInBank &= 0x00FF
+	// addressInBank is now 0x0000 <= x <= 0x00FF
 
-	deviceIndex := int(address / 0x0010)
-	deviceAddress := uint32(address % 0x0010)
+	deviceIndex := int(addressInBank / 0x0010)
+	deviceAddress := uint32(addressInBank % 0x0010)
 
 	return deviceIndex, deviceAddress
 }
