@@ -150,14 +150,12 @@ func (s *SerialPort) Tick() {
 	// Were we in the middle of a transmission?
 	if s.isTransmitting {
 		s.timeToTransmit--
-		fmt.Printf("We are in mid transmission %d\n", s.timeToTransmit)
 		s.timeToTransmit = intmaxmin.Max(s.timeToTransmit, 0)
 		if s.timeToTransmit == 0 {
 			// If we got this far, we had a pending transmission, let's actually
 			// transmit.  The idea the "transmission" started a while ago, but the
 			// full byte has finally been transmitted.
 			// We don't transmit a bit at a time; we transmit the whole byte at the end.
-			fmt.Printf("  Doing TCP transmission\n")
 			var byteSlice []byte
 			byteSlice = append(byteSlice, s.transmitRegister)
 			s.serialConnection.Write(byteSlice)
@@ -171,13 +169,11 @@ func (s *SerialPort) Tick() {
 	if s.transmitFifo.isEmpty() {
 		return
 	}
-	fmt.Printf("  TX Buffer was NOT empty\n")
 
 	// If we got this far, the transmit fifo has more to send
 	// and we know the simulated transmitter has been idle
 	// Let's "begin" the transmission.
 	s.transmitRegister = s.transmitFifo.pop()
-	fmt.Printf("      transmit Reg is %d\n", s.transmitRegister)
 	s.timeToTransmit = numTXTicksPerByte
 	s.isTransmitting = true
 
