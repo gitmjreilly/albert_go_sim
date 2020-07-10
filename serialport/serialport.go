@@ -21,14 +21,16 @@ const (
 // SerialPort provides virtual serial port implemented with TCP
 type SerialPort struct {
 	name                      string
-	receiveBuffer             fifo
-	transmitBuffer            fifo
-	remainingTransmitTime     int
+	receiveFifo               fifo
+	transmitFifo              fifo
 	remaingingReceiveTime     int
 	serialConnection          net.Conn
 	inputChannel              chan uint8
 	numTicksSinceReception    int
 	numTicksSinceTransmission int
+	isTransmitting            bool
+	timeToTransmit            int
+	transmitRegister          uint8
 }
 
 type fifo struct {
@@ -83,8 +85,8 @@ func (s *SerialPort) Init(name string, tcpPortNum int) {
 	fmt.Printf("Initializing serial port %s with port :%d\n", name, tcpPortNum)
 	s.name = name
 
-	s.transmitBuffer.init(transmitBufferSize)
-	s.receiveBuffer.init(receiverBufferSize)
+	s.transmitFifo.init(transmitBufferSize)
+	s.receiveFifo.init(receiverBufferSize)
 
 	portString := fmt.Sprintf(":%d", tcpPortNum)
 	ln, err := net.Listen("tcp", portString)
@@ -130,12 +132,12 @@ func (s *SerialPort) Tick() {
 	if s.numTicksSinceReception >= numRXTicksPerByte {
 		select {
 		case b := <-s.inputChannel:
-			if s.receiveBuffer.isFull() {
+			if s.receiveFifo.isFull() {
 				fmt.Printf("WARNING receiver buffer is full.  Data overrun will occur.\n")
 			}
 
 			// byteNum++
-			s.receiveBuffer.push(b)
+			s.receiveFifo.push(b)
 
 			s.numTicksSinceReception = 0
 		default:
@@ -143,29 +145,42 @@ func (s *SerialPort) Tick() {
 		}
 	}
 
-	// Since another clock tick has occurred, Note how much time has passed
-	// since the last byte was transmitted, capping the time at the
-	// the number of ticks since the last transmission so
-	// numTicksSinceTransmission doesn't grow unbounded
-	s.numTicksSinceTransmission = intmaxmin.Min(s.numTicksSinceTransmission+1, numTXTicksPerByte)
+	// Work on the transmit side
 
-	// Is there any data to transmit?  If not there's nothing more to do
-	if s.transmitBuffer.isEmpty() {
+	// Were we in the middle of a transmission?
+	if s.isTransmitting {
+		s.timeToTransmit--
+		fmt.Printf("We are in mid transmission %d\n", s.timeToTransmit)
+		s.timeToTransmit = intmaxmin.Max(s.timeToTransmit, 0)
+		if s.timeToTransmit == 0 {
+			// If we got this far, we had a pending transmission, let's actually
+			// transmit.  The idea the "transmission" started a while ago, but the
+			// full byte has finally been transmitted.
+			// We don't transmit a bit at a time; we transmit the whole byte at the end.
+			fmt.Printf("  Doing TCP transmission\n")
+			var byteSlice []byte
+			byteSlice = append(byteSlice, s.transmitRegister)
+			s.serialConnection.Write(byteSlice)
+			s.numTicksSinceTransmission = 0
+			s.isTransmitting = false
+		}
 		return
 	}
 
-	// If we got this far, there's something to transmit, but
-	// we also have to ensure enough (tick) time has passed since the last transmission
-	if s.numTicksSinceTransmission < numTXTicksPerByte {
+	// If we got this far, should we begin a new transmission?
+	if s.transmitFifo.isEmpty() {
 		return
 	}
+	fmt.Printf("  TX Buffer was NOT empty\n")
 
-	b := s.transmitBuffer.pop()
+	// If we got this far, the transmit fifo has more to send
+	// and we know the simulated transmitter has been idle
+	// Let's "begin" the transmission.
+	s.transmitRegister = s.transmitFifo.pop()
+	fmt.Printf("      transmit Reg is %d\n", s.transmitRegister)
+	s.timeToTransmit = numTXTicksPerByte
+	s.isTransmitting = true
 
-	var byteSlice []byte
-	byteSlice = append(byteSlice, b)
-	s.serialConnection.Write(byteSlice)
-	s.numTicksSinceTransmission = 0
 }
 
 // Write takes address and value.
@@ -177,11 +192,11 @@ func (s *SerialPort) Write(address uint32, value uint16) {
 		return
 	}
 
-	if s.transmitBuffer.isFull() {
+	if s.transmitFifo.isFull() {
 		fmt.Printf("WARNING you are writing to an already full serial transmit buffer; this will result in overrun\n")
 	}
 
-	s.transmitBuffer.push(uint8(value))
+	s.transmitFifo.push(uint8(value))
 
 }
 
@@ -195,14 +210,14 @@ func (s *SerialPort) Read(address uint32) uint16 {
 	if address == 0 {
 		// User wants to read received serial data.
 		// Do some sanity checks along the way
-		if s.receiveBuffer.isEmpty() {
+		if s.receiveFifo.isEmpty() {
 			fmt.Printf("WARNING trying to read from empty serial receive buffer; returning\n")
 			return 0
 		}
 
 		// Consume from receiver buffer, including updating index and
 		// decrementing number
-		value = uint16(s.receiveBuffer.pop())
+		value = uint16(s.receiveFifo.pop())
 
 		return value
 	}
@@ -211,45 +226,45 @@ func (s *SerialPort) Read(address uint32) uint16 {
 	// 0x0001 == transmitter is available for transmission
 	// 0x0002 == receiver has a byte to be read
 	if address == 1 {
-		if !s.transmitBuffer.isFull() {
+		if !s.transmitFifo.isFull() {
 			value |= 0x0001
 		}
-		if !s.receiveBuffer.isEmpty() {
+		if !s.receiveFifo.isEmpty() {
 			value |= 0x0002
 		}
 		return value
 	}
 
 	if address == 2 {
-		if s.transmitBuffer.isEmpty() {
+		if s.transmitFifo.isEmpty() {
 			value = 0x0001
 		}
 		return value
 	}
 
 	if address == 3 {
-		if s.transmitBuffer.numElements < transmitBufferSize/2 {
+		if s.transmitFifo.numElements < transmitBufferSize/2 {
 			value = 0x0001
 		}
 		return value
 	}
 
 	if address == 4 {
-		if s.transmitBuffer.numElements == transmitBufferSize {
+		if s.transmitFifo.numElements == transmitBufferSize {
 			value = 0x0001
 		}
 		return value
 	}
 
 	if address == 5 {
-		if s.transmitBuffer.isFull() {
+		if s.transmitFifo.isFull() {
 			value = 0x0001
 		}
 		return value
 	}
 
 	if address == 6 { // OK
-		if s.receiveBuffer.isEmpty() {
+		if s.receiveFifo.isEmpty() {
 			value = 0x0001
 		}
 		return value
@@ -257,32 +272,32 @@ func (s *SerialPort) Read(address uint32) uint16 {
 	}
 
 	if address == 7 {
-		if s.receiveBuffer.numElements >= receiverBufferSize/2 {
+		if s.receiveFifo.numElements >= receiverBufferSize/2 {
 			value = 0x0001
 		}
 		return value
 	}
 
 	if address == 8 {
-		if s.receiveBuffer.numElements >= receiverBufferSize/4 {
+		if s.receiveFifo.numElements >= receiverBufferSize/4 {
 			value = 0x0001
 		}
 		return value
 	}
 
 	if address == 9 {
-		if s.receiveBuffer.numElements == receiverBufferSize {
+		if s.receiveFifo.numElements == receiverBufferSize {
 			value = 0x0001
 		}
 		return value
 	}
 
 	if address == 0xE {
-		return uint16(s.receiveBuffer.numElements)
+		return uint16(s.receiveFifo.numElements)
 	}
 
 	if address == 0xF {
-		return uint16(s.transmitBuffer.numElements)
+		return uint16(s.transmitFifo.numElements)
 	}
 
 	fmt.Printf("FATAL - tried to read from unmapped serial port address %02X in [%s]\n", address, s.name)
@@ -293,10 +308,10 @@ func (s *SerialPort) Read(address uint32) uint16 {
 
 // RXIsHalfFull is a callback meant for use by an interrupt controller
 func (s *SerialPort) RXIsHalfFull() bool {
-	return s.receiveBuffer.numElements >= receiverBufferSize/2
+	return s.receiveFifo.numElements >= receiverBufferSize/2
 }
 
 // RXIsQuarterFull is a callback meant for use by an interrupt controller
 func (s *SerialPort) RXIsQuarterFull() bool {
-	return s.receiveBuffer.numElements >= receiverBufferSize/4
+	return s.receiveFifo.numElements >= receiverBufferSize/4
 }
