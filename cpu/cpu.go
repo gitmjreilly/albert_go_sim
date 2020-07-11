@@ -229,7 +229,7 @@ func (c *CPU) Tick() int {
 	}
 
 	// var absoluteAddress uint32 = uint32(c.CS<<4 + c.PC)
-	absoluteAddress := uint32(c.CS<<4) + uint32(c.PC)
+	absoluteAddress := uint32(c.CS)<<4 + uint32(c.PC)
 
 	if c.InterruptCallback() && ((c.IntCtlLow & 0x01) == 1) {
 		// Notice the PC has not been incremented.
@@ -296,6 +296,7 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint32) int {
 	snapShot.inlineOperand = inlineOperand
 	snapShot.rtosOperand = c.RTOS
 	snapShot.pspOperand = c.PSP
+	snapShot.rspOperand = c.RSP
 	snapShot.csOperand = c.CS
 	snapShot.dsOperand = c.DS
 	snapShot.esOperand = c.ES
@@ -859,6 +860,17 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint32) int {
 		a := c.pop()
 		c.rPush(a)
 
+		return Normal
+	}
+
+	// UM+
+	if opCode == umPlusOpcode {
+		a := uint32(c.pop())
+		b := uint32(c.pop())
+		sum := (a + b) & 0xFFFF
+		c.push(uint16(sum))
+		carry := ((a + b) & 0x10000) >> 16
+		c.push(uint16(carry))
 		return Normal
 	}
 

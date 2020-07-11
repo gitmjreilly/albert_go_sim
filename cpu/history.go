@@ -17,6 +17,7 @@ type Status struct {
 	inlineOperand   uint16
 	rtosOperand     uint16
 	pspOperand      uint16
+	rspOperand      uint16
 	ptosOperand     uint16
 	csOperand       uint16
 	dsOperand       uint16
@@ -96,6 +97,7 @@ func createDisassemblyString(s Status) string {
 	rightOperand := s.rightOperand
 	inlineOperand := s.inlineOperand
 	pspOperand := s.pspOperand
+	rspOperand := s.rspOperand
 	rtosOperand := s.rtosOperand
 	csOperand := s.csOperand
 	dsOperand := s.dsOperand
@@ -337,6 +339,22 @@ func createDisassemblyString(s Status) string {
 		instructionString := fmt.Sprintf("[RTOS: %04X] R_FETCH", rtosOperand)
 		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
 		return disassemblyString
+	}
+
+	// RP_FETCH
+	if opCode == rpFetchOpcode {
+		instructionString := fmt.Sprintf("[RSP: %04X] RP_FETCH (to be fixed)", rspOperand)
+		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
+		return disassemblyString
+
+	}
+
+	// RP_STORE
+	if opCode == rpStoreOpcode {
+		instructionString := fmt.Sprintf("[PTOS: %04X] RP_STORE", rightOperand)
+		disassemblyString := fmt.Sprintf("%08X  %25s | %s", absoluteAddress, instructionString, stackString)
+		return disassemblyString
+
 	}
 
 	// SP_FETCH
