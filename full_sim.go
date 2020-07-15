@@ -235,6 +235,7 @@ func main() {
 
 		if selection == "d" {
 			mycpu.ShowStatus()
+			interruptController1.ShowStatus()
 			continue
 		}
 

@@ -96,3 +96,13 @@ func (i *InterruptController) Write(address uint32, value uint16) {
 		i.mask = value
 	}
 }
+
+// ShowStatus shows the values in the int controller registers
+func (i *InterruptController) ShowStatus() {
+	fmt.Printf("Interrupt Controller Status\n")
+	fmt.Printf("  mask   : %04X\n", i.mask)
+	fmt.Printf("  status : %04X\n", i.status)
+	fmt.Printf("  clear  : %04X\n", i.clear)
+	fmt.Printf("  ouput  : %v\n", i.GetOutput())
+
+}
