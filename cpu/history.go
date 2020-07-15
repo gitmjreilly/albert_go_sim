@@ -41,6 +41,12 @@ func (h *tHistory) logInstruction(s Status) {
 	}
 }
 
+// Clear wipes out history
+func (h *tHistory) Clear() {
+	h.numEntries = 0
+	h.nextIn = 0
+}
+
 // Display dumps numInstructions of the cpu history
 func (h *tHistory) Display(numInstructions int) {
 	numInstructions = intmaxmin.Constrain(numInstructions, 0, h.numEntries)

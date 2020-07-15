@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -111,6 +112,18 @@ func Init() {
 	}()
 }
 
+func resetComputer() {
+	mycpu.PC = 0
+	mycpu.RSP = 0xFE00
+	mycpu.PSP = 0xFF00
+	mycpu.CS = 0
+	mycpu.DS = 0
+	mycpu.ES = 0
+	mycpu.IntCtlLow = 0
+	cpu.History.Clear()
+	fmt.Printf("The computer has been reset.\n")
+}
+
 // runSimulator increments the global time
 // and "drives" all of the hardware by calling
 // the Tick() functions.
@@ -187,6 +200,167 @@ func showStacks() {
 
 }
 
+// load403File - uses Original Pat loader format from 2006!
+// It is interactive and prompts for a file name.
+// TODO create a return value to show success or failure
+func load403File() {
+
+	// read4 returns uint16 by reading 4 HEX digits from f
+	read4 := func(f *os.File) uint16 {
+		b := make([]byte, 4)
+		f.Read(b)
+		s := string(b)
+		n, _ := strconv.ParseUint(s, 16, 32)
+		w := uint16(n)
+		return (w)
+
+	}
+
+	filename := cli.RawInput("Enter 403 file name >")
+	fileInfo, err := os.Stat(filename)
+	if err != nil {
+		fmt.Printf("Could not stat file [%s].  Returning\n", filename)
+		return
+	}
+	actualFileSize := fileInfo.Size()
+	fmt.Printf("File Size is %d\n", actualFileSize)
+	if actualFileSize < 12 {
+		fmt.Printf("File is too small to be a valid 403 file; returning...\n")
+		return
+	}
+
+	f, err := os.Open(filename)
+	if err != nil {
+		fmt.Printf("Could not open %s\n", filename)
+		return
+	}
+
+	objectLength := read4(f)
+	requiredFileSize := 4 + 4 + 4*objectLength
+	if actualFileSize != int64(requiredFileSize) {
+		fmt.Printf("file size mismatch; returning...\n")
+	}
+	startAddress := read4(f)
+
+	fmt.Printf("Setting PC to [%04X]\n", startAddress)
+	mycpu.SetPC(startAddress)
+
+	memoryAddress := uint32(0x0403)
+	for {
+		if objectLength == 0 {
+			break
+		}
+		dataWord := read4(f)
+		mem.Write(memoryAddress, dataWord)
+		memoryAddress++
+		objectLength--
+	}
+
+}
+
+// loadV4File -
+// It is interactive and prompts for a file name.
+// TODO create a return value to show success or failure
+func loadV4File() {
+
+	// read4 returns uint16 by reading 4 HEX digits from f
+	read4 := func(f *os.File) uint16 {
+		b := make([]byte, 2)
+		f.Read(b)
+		w := uint16(b[0])*256 + uint16(b[1])
+		return (w)
+
+	}
+
+	filename := cli.RawInput("Enter V4 file name >")
+	fileInfo, err := os.Stat(filename)
+	if err != nil {
+		fmt.Printf("Could not stat file [%s].  Returning\n", filename)
+		return
+	}
+	actualFileSize := fileInfo.Size()
+	fmt.Printf("File Size is %08X\n", actualFileSize)
+	if actualFileSize < 14 {
+		fmt.Printf("File is too small to be a valid V4 file; returning...\n")
+		return
+	}
+
+	f, err := os.Open(filename)
+	if err != nil {
+		fmt.Printf("Could not open V4 file %s\n", filename)
+		return
+	}
+
+	magic1 := read4(f)
+	magic2 := read4(f)
+	if (magic1 != 0) || (magic2 != 4) {
+		fmt.Printf("Incorrect magic %04X %04X expected 0000:0004\n", magic1, magic2)
+		return
+	}
+
+	codeSize := read4(f)
+	codeLoadAddress := read4(f)
+	codeStartAddress := read4(f)
+	dataSize := read4(f)
+	dataLoadAddress := read4(f)
+
+	fmt.Printf("Code Size [%04X]\n", codeSize)
+	fmt.Printf("Code Load Address [%04X]\n", codeLoadAddress)
+	fmt.Printf("Code Start Address [%04X]\n", codeStartAddress)
+
+	fmt.Printf("Data Size [%04X]\n", dataSize)
+	fmt.Printf("Data Load Address [%04X]\n", dataLoadAddress)
+	requiredFileSize := 7*2 + (2 * int(codeSize)) + (2 * int(dataSize))
+	fmt.Printf("Required File Size is [%08X]\n", requiredFileSize)
+
+	if actualFileSize != int64(requiredFileSize) {
+		fmt.Printf("file size mismatch; returning...\n")
+	}
+
+	fmt.Printf("Actual File Size and Calculated File Size match. Continuing...\n")
+
+	memoryAddress := uint32(codeLoadAddress)
+	for {
+		if codeSize == 0 {
+			break
+		}
+		dataWord := read4(f)
+		mem.Write(memoryAddress, dataWord)
+		memoryAddress++
+		codeSize--
+	}
+
+	memoryAddress = uint32(dataLoadAddress)
+	for {
+		if dataSize == 0 {
+			break
+		}
+		dataWord := read4(f)
+		mem.Write(memoryAddress, dataWord)
+		memoryAddress++
+		dataSize--
+	}
+
+	mycpu.PC = codeStartAddress
+
+	// startAddress := read4(f)
+
+	// fmt.Printf("Setting PC to [%04X]\n", startAddress)
+	// mycpu.SetPC(startAddress)
+
+	// memoryAddress := uint32(0x0403)
+	// for {
+	// 	if objectLength == 0 {
+	// 		break
+	// 	}
+	// 	dataWord := read4(f)
+	// 	mem.Write(memoryAddress, dataWord)
+	// 	memoryAddress++
+	// 	objectLength--
+	// }
+
+}
+
 func helpMessage() {
 	fmt.Printf("HELP\n")
 	fmt.Printf("   r - run the simulator\n")
@@ -195,10 +369,12 @@ func helpMessage() {
 	fmt.Printf("   b - Set break point\n")
 	fmt.Printf("   B - Show Break points\n")
 	fmt.Printf("   l - load a 403 file\n")
+	fmt.Printf("   L - Load V4 file (for Bilal!)\n")
 	fmt.Printf("   m - dump memory\n")
 	fmt.Printf("   d - display CPU status\n")
 	fmt.Printf("   c - clear break point\n")
 	fmt.Printf("   H - display History\n")
+	fmt.Printf("   R - reset computer\n")
 	fmt.Printf("   q - quit the simulator\n")
 }
 
@@ -224,6 +400,11 @@ func main() {
 			continue
 		}
 
+		if selection == "L" {
+			loadV4File()
+			continue
+		}
+
 		if selection == "c" {
 			mycpu.ClearBreakPoint()
 			continue
@@ -245,6 +426,11 @@ func main() {
 			fmt.Printf("Started waiting in full sim\n")
 			wg.Wait()
 			fmt.Printf("Finished waiting in full sim\n")
+			continue
+		}
+
+		if selection == "R" {
+			resetComputer()
 			continue
 		}
 
