@@ -508,8 +508,8 @@ func (c *CPU) doInstruction(opCode uint16, absoluteAddress uint32) int {
 		c.RSP = tmpRSP
 		c.RTOS = tmpRTOS
 
-		fmt.Printf("DEBUG in RETI 9 values were popped:\n")
-		c.ShowStatus()
+		// fmt.Printf("DEBUG in RETI 9 values were popped:\n")
+		// c.ShowStatus()
 
 		return Normal
 	}

@@ -74,6 +74,12 @@ func (f *fifo) isEmpty() bool {
 	return f.numElements == 0
 }
 
+func (f *fifo) clear() {
+	f.numElements = 0
+	f.in = 0
+	f.out = 0
+}
+
 //
 
 // Init must be called before the serial port is used.
@@ -120,6 +126,14 @@ func (s *SerialPort) Init(name string, tcpPortNum int) {
 
 	go poll()
 
+}
+
+// Reset the serial port.  Use this when
+// you want to ensure the fifo's are empty.
+func (s *SerialPort) Reset() {
+	s.transmitFifo.clear()
+	s.receiveFifo.clear()
+	s.isTransmitting = false
 }
 
 // Tick should be called on every tick off the virtual clock

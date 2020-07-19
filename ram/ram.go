@@ -17,3 +17,10 @@ func (r *RAM) Read(address uint32) uint16 {
 func (r *RAM) Write(address uint32, value uint16) {
 	r[address] = value
 }
+
+// Clear RAM to 0
+func (r *RAM) Clear() {
+	for i := 0; i < RAMSIZE; i++ {
+		r[i] = 0
+	}
+}

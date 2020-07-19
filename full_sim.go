@@ -121,6 +121,10 @@ func resetComputer() {
 	mycpu.ES = 0
 	mycpu.IntCtlLow = 0
 	cpu.History.Clear()
+	ram1.Clear()
+	consoleSerialPort.Reset()
+	diskControllerPort.Reset()
+	terminalControllerPort.Reset()
 	fmt.Printf("The computer has been reset.\n")
 }
 
@@ -343,22 +347,13 @@ func loadV4File() {
 
 	mycpu.PC = codeStartAddress
 
-	// startAddress := read4(f)
+}
 
-	// fmt.Printf("Setting PC to [%04X]\n", startAddress)
-	// mycpu.SetPC(startAddress)
+func setPC() {
+	s := cli.RawInput("Enter PC (in hex) >")
 
-	// memoryAddress := uint32(0x0403)
-	// for {
-	// 	if objectLength == 0 {
-	// 		break
-	// 	}
-	// 	dataWord := read4(f)
-	// 	mem.Write(memoryAddress, dataWord)
-	// 	memoryAddress++
-	// 	objectLength--
-	// }
-
+	n, _ := strconv.ParseUint(s, 16, 32)
+	mycpu.PC = uint16(n)
 }
 
 func helpMessage() {
@@ -368,12 +363,13 @@ func helpMessage() {
 	fmt.Printf("   S - Show stacks\n")
 	fmt.Printf("   b - Set break point\n")
 	fmt.Printf("   B - Show Break points\n")
-	fmt.Printf("   l - load a 403 file\n")
+	// fmt.Printf("   l - load a 403 file\n")
 	fmt.Printf("   L - Load V4 file (for Bilal!)\n")
 	fmt.Printf("   m - dump memory\n")
 	fmt.Printf("   d - display CPU status\n")
 	fmt.Printf("   c - clear break point\n")
 	fmt.Printf("   H - display History\n")
+	fmt.Printf("   p - Set PC\n")
 	fmt.Printf("   R - reset computer\n")
 	fmt.Printf("   q - quit the simulator\n")
 }
@@ -383,7 +379,7 @@ func main() {
 	Init()
 
 	for {
-		selection := cli.RawInput("Simulator (h for help) >")
+		selection := cli.RawInput("Enter menu choice >")
 
 		if selection == "h" {
 			helpMessage()
@@ -402,6 +398,11 @@ func main() {
 
 		if selection == "L" {
 			loadV4File()
+			continue
+		}
+
+		if selection == "p" {
+			setPC()
 			continue
 		}
 
@@ -461,13 +462,5 @@ func main() {
 		}
 
 	}
-
-	fmt.Printf("PC is %04X\n", mycpu.PC)
-	fmt.Printf("PSP is %04X\n", mycpu.PSP)
-	fmt.Printf("RSP is %04X\n", mycpu.RSP)
-	fmt.Printf("Dumping stack\n")
-	showStacks()
-
-	fmt.Printf("Simulation is finished\n")
 
 }
