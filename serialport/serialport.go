@@ -323,5 +323,6 @@ func (s *SerialPort) RXIsHalfFull() bool {
 
 // RXIsQuarterFull is a callback meant for use by an interrupt controller
 func (s *SerialPort) RXIsQuarterFull() bool {
+	// Note the hardware checks for numElements >= 1/4 full
 	return s.receiveFifo.numElements >= receiverBufferSize/4
 }
